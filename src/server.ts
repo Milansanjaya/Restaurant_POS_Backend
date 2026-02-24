@@ -15,11 +15,11 @@ const startServer = async () => {
     await assignAdminPermissions();
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
 
   } catch (error) {
-    console.error("❌ Server startup failed:", error);
+    console.error("Server startup failed:", error);
     process.exit(1);
   }
 };
