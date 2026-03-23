@@ -3,16 +3,31 @@ import { AuthRequest } from "../../middleware/auth.middleware";
 import Product from "../products/product.model";
 import Sale from "./sale.model";
 import InventoryLog from "../inventory/inventoryLog.model";
+import KitchenOrder from "../kitchen/kitchen.model";
+import Shift from "../shifts/shift.model"; // ✅ IMPORTANT
 
+// ================= CREATE SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
   try {
+    // 🔒 Check open shift
+    const openShift = await Shift.findOne({
+      cashier: req.user?._id,
+      status: "OPEN"
+    });
+
+    if (!openShift) {
+      return res.status(400).json({
+        message: "No open shift. Please open shift first."
+      });
+    }
+
     const { items, paymentMethod, discount = 0 } = req.body;
 
     let subtotal = 0;
     let taxTotal = 0;
-    const processedItems = [];
+    const processedItems: any[] = [];
 
-    // 🔹 Phase 1: Validate & calculate only
+    // 🔹 Phase 1: Validate + calculate
     for (const item of items) {
       const product = await Product.findOne({
         _id: item.product,
@@ -41,7 +56,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         quantity: item.quantity,
         price: product.price,
         taxRate: product.taxRate,
-        subtotal: itemSubtotal
+        subtotal: itemSubtotal,
+        productName: product.name // ✅ IMPORTANT for kitchen
       });
     }
 
@@ -80,6 +96,18 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // 🔥 Phase 4: Create Kitchen Order
+    await KitchenOrder.create({
+      sale: sale._id,
+      branch_id: req.user?.branch_id,
+      items: processedItems.map((item) => ({
+        product: item.product,
+        name: item.productName,
+        quantity: item.quantity
+      })),
+      createdBy: req.user?._id
+    });
+
     res.status(201).json({
       message: "Sale completed successfully",
       sale
@@ -92,6 +120,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// ================= VOID SALE =================
 export const voidSale = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -130,9 +160,9 @@ export const voidSale = async (req: AuthRequest, res: Response) => {
     }
 
     sale.status = "VOIDED";
-    sale.voidedBy = req.user?._id;
-    sale.voidedAt = new Date();
-    sale.voidReason = reason;
+    (sale as any).voidedBy = req.user?._id;
+    (sale as any).voidedAt = new Date();
+    (sale as any).voidReason = reason;
 
     await sale.save();
 
