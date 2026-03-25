@@ -17,9 +17,21 @@ export interface ISale extends Document {
   discount: number;
   grandTotal: number;
 
-  paymentMethod: string;
+  // 🔥 Payments
+  payments: {
+    amount: number;
+    paymentMethod: string;
+    paidAt?: Date;
+    receivedBy?: mongoose.Types.ObjectId;
+  }[];
 
-  status: "COMPLETED" | "VOIDED";   // 🔥 Strong typing
+  paidAmount: number;
+  balanceAmount: number;
+
+  paymentMethod?: string; // final method (optional summary)
+
+  // 🔥 Updated statuses
+  status: "OPEN" | "PARTIALLY_PAID" | "COMPLETED" | "VOIDED";
 
   createdBy: mongoose.Types.ObjectId;
 
@@ -36,7 +48,11 @@ const SaleSchema = new Schema<ISale>(
 
     items: [
       {
-        product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+        product: {
+          type: Schema.Types.ObjectId,
+          ref: "Product",
+          required: true
+        },
         quantity: { type: Number, required: true },
         price: { type: Number, required: true },
         taxRate: { type: Number, required: true },
@@ -49,12 +65,30 @@ const SaleSchema = new Schema<ISale>(
     discount: { type: Number, default: 0 },
     grandTotal: { type: Number, required: true },
 
-    paymentMethod: { type: String, required: true },
+    // 🔥 Multiple payments support
+    payments: [
+      {
+        amount: { type: Number, required: true },
+        paymentMethod: { type: String, required: true },
+        paidAt: { type: Date, default: Date.now },
+        receivedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User"
+        }
+      }
+    ],
+
+    paidAmount: { type: Number, default: 0 },
+
+    balanceAmount: { type: Number, default: 0 },
+
+    // optional summary (last payment method)
+    paymentMethod: { type: String },
 
     status: {
       type: String,
-      enum: ["COMPLETED", "VOIDED"],
-      default: "COMPLETED"
+      enum: ["OPEN", "PARTIALLY_PAID", "COMPLETED", "VOIDED"],
+      default: "OPEN"
     },
 
     createdBy: {
@@ -63,7 +97,6 @@ const SaleSchema = new Schema<ISale>(
       required: true
     },
 
-    // 🔥 Void tracking fields
     voidedBy: {
       type: Schema.Types.ObjectId,
       ref: "User"

@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import Product from "./product.model";
 import { AuthRequest } from "../../middleware/auth.middleware";
+import Inventory from "../inventory/inventory.model";
+
+
 
 export const createProduct = async (req: AuthRequest, res: Response) => {
   try {
@@ -34,6 +37,12 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       branch_id: req.user?.branch_id,
       createdBy: req.user?._id
     });
+
+    await Inventory.create({
+  product: product._id,
+  branch_id: req.user?.branch_id,
+  stockQuantity: 0
+});
 
     res.status(201).json({
       message: "Product created successfully",

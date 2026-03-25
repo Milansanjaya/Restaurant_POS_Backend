@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import KitchenOrder from "./kitchen.model";
+import { getIO } from "../../infrastructure/socket";
 
 export const getKitchenQueue = async (req: AuthRequest, res: Response) => {
   try {
@@ -23,16 +24,37 @@ export const getKitchenQueue = async (req: AuthRequest, res: Response) => {
 export const updateKitchenStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status } = req.body || {};
+
+    if (!status) {
+      return res.status(400).json({
+        message: "Status is required"
+      });
+    }
+
+    const validStatuses = ["PENDING", "PREPARING", "READY", "SERVED"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid status"
+      });
+    }
 
     const order = await KitchenOrder.findById(id);
 
     if (!order) {
-      return res.status(404).json({ message: "Kitchen order not found" });
+      return res.status(404).json({
+        message: "Kitchen order not found"
+      });
     }
 
-    order.status = status;
+    order.status = status as any;
     await order.save();
+
+    getIO().emit("kitchen:status-updated", order);
+    getIO().to(`branch:${order.branch_id}`).emit(
+  "kitchen:status-updated",
+  order
+);
 
     res.json({
       message: "Kitchen status updated",

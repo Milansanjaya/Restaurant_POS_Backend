@@ -1,31 +1,40 @@
 import { Router } from "express";
-import { createSale, voidSale, closeTableSale, paySale } from "./sale.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
+import {
+  createTable,
+  getTables,
+  updateTableStatus,
+  closeTable
+} from "./table.controller";
 
 const router = Router();
+
+router.get(
+  "/",
+  authenticate,
+  authorize("VIEW_REPORTS"),
+  getTables
+);
 
 router.post(
   "/",
   authenticate,
-  authorize("CREATE_SALE"),
-  createSale
+  authorize("EDIT_PRODUCT"),
+  createTable
 );
-router.post(
-  "/void/:id",
+
+router.patch(
+  "/:id/status",
   authenticate,
-  authorize("VOID_SALE"),
-  voidSale
+  authorize("EDIT_PRODUCT"),
+  updateTableStatus
 );
+
 router.post(
   "/:tableId/close",
   authenticate,
-  closeTableSale
+  closeTable
 );
-router.post(
-  "/:saleId/pay",
-  authenticate,
-  authorize("CREATE_SALE"),
-  paySale
-);
+
 export default router;
