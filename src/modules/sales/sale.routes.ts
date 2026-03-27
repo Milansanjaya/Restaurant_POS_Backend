@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createSale, voidSale, closeTableSale, paySale } from "./sale.controller";
+import { createSale, voidSale, closeTableSale, paySale,getInvoice,refundSale } from "./sale.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 
@@ -27,5 +27,19 @@ router.post(
   authenticate,
   authorize("CREATE_SALE"),
   paySale
+);
+
+router.get(
+  "/:saleId/invoice",
+  authenticate,
+  authorize("VIEW_REPORTS"),
+  getInvoice
+);
+
+router.post(
+  "/:saleId/refund",
+  authenticate,
+  authorize("VOID_SALE"),
+  refundSale
 );
 export default router;

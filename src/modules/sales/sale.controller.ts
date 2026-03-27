@@ -8,6 +8,8 @@ import KitchenOrder from "../kitchen/kitchen.model";
 import Shift from "../shifts/shift.model";
 import { getIO } from "../../infrastructure/socket";
 import Table from "../tables/table.model";
+import Reservation from "../reservations/reservation.model";
+import Coupon from "../coupons/coupon.model";
 
 // ================= CREATE / ADD TO SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
@@ -23,7 +25,15 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { items, paymentMethod, discount = 0, tableId } = req.body;
+    const {
+      items,
+      paymentMethod,
+      tableId,
+      reservationId,
+      discountType,
+      discountValue,
+      couponCode
+    } = req.body;
 
     let subtotal = 0;
     let taxTotal = 0;
@@ -31,7 +41,9 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
     let table: any = null;
     let sale: any = null;
+    let reservation: any = null;
 
+    // ✅ Validate table
     if (tableId) {
       table = await Table.findOne({
         _id: tableId,
@@ -59,6 +71,33 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // ✅ Validate reservation
+    if (reservationId) {
+      reservation = await Reservation.findOne({
+        _id: reservationId,
+        branch_id: req.user?.branch_id
+      });
+
+      if (!reservation) {
+        return res.status(404).json({
+          message: "Reservation not found"
+        });
+      }
+
+      if (reservation.status !== "SEATED") {
+        return res.status(400).json({
+          message: "Reservation must be SEATED to start order"
+        });
+      }
+
+      if (table && reservation.table?.toString() !== table._id.toString()) {
+        return res.status(400).json({
+          message: "Reservation is not linked to the selected table"
+        });
+      }
+    }
+
+    // ✅ Validate items + inventory + calculate
     for (const item of items) {
       const product = await Product.findOne({
         _id: item.product,
@@ -106,9 +145,51 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // ✅ Discount / coupon logic
+    let finalDiscount = 0;
+    let appliedDiscountType = discountType;
+    let appliedDiscountValue = discountValue;
+    let appliedCouponCode = couponCode;
+
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ code: couponCode });
+
+      if (!coupon || !coupon.isActive) {
+        return res.status(400).json({
+          message: "Invalid coupon"
+        });
+      }
+
+      if (coupon.expiryDate < new Date()) {
+        return res.status(400).json({
+          message: "Coupon expired"
+        });
+      }
+
+      if (coupon.discountType === "PERCENTAGE") {
+        finalDiscount = (subtotal + taxTotal) * (coupon.value / 100);
+      } else {
+        finalDiscount = coupon.value;
+      }
+
+      appliedDiscountType = coupon.discountType;
+      appliedDiscountValue = coupon.value;
+    } else if (discountType && discountValue) {
+      if (discountType === "PERCENTAGE") {
+        finalDiscount = (subtotal + taxTotal) * (discountValue / 100);
+      } else {
+        finalDiscount = discountValue;
+      }
+    }
+
+    if (finalDiscount > subtotal + taxTotal) {
+      finalDiscount = subtotal + taxTotal;
+    }
+
+    // ✅ Create new sale if no active one exists
     if (!sale) {
       const invoiceNumber = `INV-${Date.now()}`;
-      const initialGrandTotal = subtotal + taxTotal - discount;
+      const initialGrandTotal = subtotal + taxTotal - finalDiscount;
 
       sale = await Sale.create({
         invoiceNumber,
@@ -122,11 +203,15 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         })),
         subtotal,
         taxTotal,
-        discount,
+        discount: finalDiscount,
+        discountType: appliedDiscountType,
+        discountValue: appliedDiscountValue || 0,
+        couponCode: appliedCouponCode || undefined,
         grandTotal: initialGrandTotal,
         createdBy: req.user?._id,
 
-        // payment fields
+        reservation: reservation ? reservation._id : undefined,
+
         paymentMethod: table ? undefined : paymentMethod,
         payments: table
           ? []
@@ -147,7 +232,13 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         table.currentSale = sale._id;
         await table.save();
       }
+
+      if (!table && reservation && sale.status === "COMPLETED") {
+        reservation.status = "COMPLETED";
+        await reservation.save();
+      }
     } else {
+      // ✅ Existing active table sale: append items only
       sale.items.push(
         ...processedItems.map((item) => ({
           product: item.product,
@@ -160,12 +251,58 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
       sale.subtotal += subtotal;
       sale.taxTotal += taxTotal;
+
+      // For appended table orders, only apply new discount if explicitly provided now.
+      let additionalDiscount = 0;
+
+      if (couponCode) {
+        const coupon = await Coupon.findOne({ code: couponCode });
+
+        if (!coupon || !coupon.isActive) {
+          return res.status(400).json({
+            message: "Invalid coupon"
+          });
+        }
+
+        if (coupon.expiryDate < new Date()) {
+          return res.status(400).json({
+            message: "Coupon expired"
+          });
+        }
+
+        if (coupon.discountType === "PERCENTAGE") {
+          additionalDiscount = (subtotal + taxTotal) * (coupon.value / 100);
+        } else {
+          additionalDiscount = coupon.value;
+        }
+
+        sale.discount += additionalDiscount;
+        sale.discountType = coupon.discountType;
+        sale.discountValue = coupon.value;
+        sale.couponCode = coupon.code;
+      } else if (discountType && discountValue) {
+        if (discountType === "PERCENTAGE") {
+          additionalDiscount = (subtotal + taxTotal) * (discountValue / 100);
+        } else {
+          additionalDiscount = discountValue;
+        }
+
+        sale.discount += additionalDiscount;
+        sale.discountType = discountType;
+        sale.discountValue = discountValue;
+      }
+
+      if (!sale.reservation && reservation) {
+        sale.reservation = reservation._id;
+      }
+
       sale.grandTotal = sale.subtotal + sale.taxTotal - sale.discount;
       sale.balanceAmount = sale.grandTotal - sale.paidAmount;
 
       await sale.save();
     }
 
+    // ✅ Deduct inventory + log
     for (const item of processedItems) {
       const inventory = await Inventory.findOne({
         product: item.product,
@@ -188,6 +325,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // ✅ Kitchen order for only newly added items
     const kitchenOrder = await KitchenOrder.create({
       sale: sale._id,
       branch_id: req.user?.branch_id,
@@ -274,6 +412,12 @@ export const closeTableSale = async (req: AuthRequest, res: Response) => {
     table.currentSale = undefined;
     await table.save();
 
+    if (sale.reservation) {
+      await Reservation.findByIdAndUpdate(sale.reservation, {
+        status: "COMPLETED"
+      });
+    }
+
     res.json({
       message: "Table sale closed successfully",
       sale
@@ -349,6 +493,12 @@ export const voidSale = async (req: AuthRequest, res: Response) => {
     sale.voidReason = reason;
 
     await sale.save();
+
+    if (sale.reservation) {
+      await Reservation.findByIdAndUpdate(sale.reservation, {
+        status: "CANCELLED"
+      });
+    }
 
     res.json({
       message: "Sale voided successfully"
@@ -432,6 +582,12 @@ export const paySale = async (req: AuthRequest, res: Response) => {
         table.currentSale = undefined;
         await table.save();
       }
+
+      if (sale.reservation) {
+        await Reservation.findByIdAndUpdate(sale.reservation, {
+          status: "COMPLETED"
+        });
+      }
     } else {
       sale.status = "PARTIALLY_PAID";
     }
@@ -444,6 +600,188 @@ export const paySale = async (req: AuthRequest, res: Response) => {
           ? "Sale fully paid and completed"
           : "Partial payment recorded",
       sale
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+export const refundSale = async (req: AuthRequest, res: Response) => {
+  try {
+    const { saleId } = req.params;
+    const { items, reason } = req.body;
+
+    const sale = await Sale.findOne({
+      _id: saleId,
+      branch_id: req.user?.branch_id
+    });
+
+    if (!sale) {
+      return res.status(404).json({
+        message: "Sale not found"
+      });
+    }
+
+    if (sale.status === "VOIDED") {
+      return res.status(400).json({
+        message: "Cannot refund voided sale"
+      });
+    }
+
+    let refundAmount = 0;
+
+    // 🔹 Full refund
+    if (!items || items.length === 0) {
+      refundAmount = sale.grandTotal;
+
+      // restore inventory
+      for (const item of sale.items) {
+        const inventory = await Inventory.findOne({
+          product: item.product,
+          branch_id: req.user?.branch_id
+        });
+
+        if (inventory) {
+          inventory.stockQuantity += item.quantity;
+          await inventory.save();
+        }
+      }
+
+      sale.status = "VOIDED";
+    }
+
+    // 🔹 Partial refund
+    else {
+      for (const rItem of items) {
+        const saleItem = sale.items.find(
+          (i: any) => i.product.toString() === rItem.product
+        );
+
+        if (!saleItem || rItem.quantity > saleItem.quantity) {
+          return res.status(400).json({
+            message: "Invalid refund quantity"
+          });
+        }
+
+        const itemRefund = saleItem.price * rItem.quantity;
+        refundAmount += itemRefund;
+
+        // reduce quantity
+        saleItem.quantity -= rItem.quantity;
+
+        // restore stock
+        const inventory = await Inventory.findOne({
+          product: rItem.product,
+          branch_id: req.user?.branch_id
+        });
+
+        if (inventory) {
+          inventory.stockQuantity += rItem.quantity;
+          await inventory.save();
+        }
+      }
+
+      // remove zero items
+      sale.items = sale.items.filter((i: any) => i.quantity > 0);
+
+      sale.subtotal -= refundAmount;
+      sale.grandTotal -= refundAmount;
+      sale.balanceAmount = sale.grandTotal - sale.paidAmount;
+    }
+
+    // log refund
+    sale.refunds.push({
+      amount: refundAmount,
+      reason,
+      items,
+      refundedBy: req.user?._id
+    } as any);
+
+    await sale.save();
+
+    res.json({
+      message: "Refund processed successfully",
+      refundAmount,
+      sale
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
+// ================= GET INVOICE =================
+export const getInvoice = async (req: AuthRequest, res: Response) => {
+  try {
+    const { saleId } = req.params;
+
+    const sale = await Sale.findOne({
+      _id: saleId,
+      branch_id: req.user?.branch_id
+    })
+      .populate("items.product")
+      .populate("createdBy", "name email")
+      .populate("reservation");
+
+    if (!sale) {
+      return res.status(404).json({
+        message: "Sale not found"
+      });
+    }
+
+    const table = await Table.findOne({
+      currentSale: sale._id,
+      branch_id: req.user?.branch_id
+    });
+
+    const invoice = {
+      invoiceNumber: sale.invoiceNumber,
+      date: sale.createdAt,
+
+      table: table
+        ? {
+            tableNumber: table.tableNumber,
+            section: table.section
+          }
+        : null,
+
+      reservation: sale.reservation || null,
+
+      cashier: sale.createdBy,
+
+      items: sale.items.map((item: any) => ({
+        productName: item.product?.name || "Unknown",
+        quantity: item.quantity,
+        price: item.price,
+        taxRate: item.taxRate,
+        subtotal: item.subtotal
+      })),
+
+      summary: {
+        subtotal: sale.subtotal,
+        taxTotal: sale.taxTotal,
+        discount: sale.discount,
+        grandTotal: sale.grandTotal,
+        paidAmount: sale.paidAmount,
+        balanceAmount: sale.balanceAmount
+      },
+
+      payments: sale.payments.map((p: any) => ({
+        amount: p.amount,
+        method: p.paymentMethod,
+        paidAt: p.paidAt
+      })),
+
+      status: sale.status
+    };
+
+    res.json({
+      message: "Invoice fetched successfully",
+      invoice
     });
   } catch (error: any) {
     res.status(500).json({

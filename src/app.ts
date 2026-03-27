@@ -11,6 +11,8 @@ import shiftRoutes from "./modules/shifts/shift.routes";
 import kitchenRoutes from "./modules/kitchen/kitchen.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import tableRoutes from "./modules/tables/table.routes";
+import reservationRoutes from "./modules/reservations/reservation.routes";
+import couponRoutes from "./modules/coupons/coupon.routes";
 
 const app: Application = express();
 
@@ -36,6 +38,10 @@ app.use("/api/shifts", shiftRoutes);
 app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/tables", tableRoutes);
+app.use("/api/reservations", reservationRoutes);
+app.use("/api/coupons", couponRoutes);
+
+
 // Health check route
 app.get("/health", (req, res) => {
   res.status(200).json({

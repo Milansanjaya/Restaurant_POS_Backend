@@ -17,7 +17,6 @@ export interface ISale extends Document {
   discount: number;
   grandTotal: number;
 
-  // 🔥 Payments
   payments: {
     amount: number;
     paymentMethod: string;
@@ -25,13 +24,29 @@ export interface ISale extends Document {
     receivedBy?: mongoose.Types.ObjectId;
   }[];
 
+  refunds?: {
+  amount: number;
+  reason: string;
+  items?: {
+    product: mongoose.Types.ObjectId;
+    quantity: number;
+  }[];
+  refundedAt: Date;
+  refundedBy: mongoose.Types.ObjectId;
+}[];
+
   paidAmount: number;
   balanceAmount: number;
 
-  paymentMethod?: string; // final method (optional summary)
+  paymentMethod?: string;
 
-  // 🔥 Updated statuses
   status: "OPEN" | "PARTIALLY_PAID" | "COMPLETED" | "VOIDED";
+
+  discountType?: "FLAT" | "PERCENTAGE";
+  discountValue?: number;
+  couponCode?: string;
+
+  reservation?: mongoose.Types.ObjectId;
 
   createdBy: mongoose.Types.ObjectId;
 
@@ -65,7 +80,6 @@ const SaleSchema = new Schema<ISale>(
     discount: { type: Number, default: 0 },
     grandTotal: { type: Number, required: true },
 
-    // 🔥 Multiple payments support
     payments: [
       {
         amount: { type: Number, required: true },
@@ -79,10 +93,8 @@ const SaleSchema = new Schema<ISale>(
     ],
 
     paidAmount: { type: Number, default: 0 },
-
     balanceAmount: { type: Number, default: 0 },
 
-    // optional summary (last payment method)
     paymentMethod: { type: String },
 
     status: {
@@ -91,6 +103,47 @@ const SaleSchema = new Schema<ISale>(
       default: "OPEN"
     },
 
+    discountType: {
+      type: String,
+      enum: ["FLAT", "PERCENTAGE"]
+    },
+
+    discountValue: {
+      type: Number,
+      default: 0
+    },
+
+    couponCode: {
+      type: String
+    },
+
+    reservation: {
+      type: Schema.Types.ObjectId,
+      ref: "Reservation"
+    },
+refunds: [
+  {
+    amount: Number,
+    reason: String,
+    items: [
+      {
+        product: {
+          type: Schema.Types.ObjectId,
+          ref: "Product"
+        },
+        quantity: Number
+      }
+    ],
+    refundedAt: {
+      type: Date,
+      default: Date.now
+    },
+    refundedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    }
+  }
+],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
