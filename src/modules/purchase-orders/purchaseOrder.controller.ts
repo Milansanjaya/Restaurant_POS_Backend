@@ -1,4 +1,5 @@
 import { Response } from "express";
+import mongoose from "mongoose";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import PurchaseOrder from "./purchaseOrder.model";
 import Supplier from "../suppliers/supplier.model";
@@ -14,14 +15,56 @@ const generatePONumber = async (branchId: string): Promise<string> => {
 
 export const createPurchaseOrder = async (req: AuthRequest, res: Response) => {
   try {
-    const { supplier_id, items, deliveryDate, notes } = req.body;
+    const supplierId = req.body?.supplier_id ?? req.body?.supplierId;
+    const itemsRaw = req.body?.items;
+    const deliveryDate = req.body?.deliveryDate ?? req.body?.expectedDeliveryDate;
+    const notes = req.body?.notes;
 
-    if (!items || items.length === 0) {
+    if (!supplierId || !mongoose.isValidObjectId(supplierId)) {
+      return res.status(400).json({ message: "Invalid supplier id" });
+    }
+
+    if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) {
       return res.status(400).json({ message: "Items are required" });
     }
 
+    const items = itemsRaw.map((item: any) => {
+      const productId = item?.product_id ?? item?.productId;
+      const quantity = Number(item?.quantity);
+      const unitPrice = Number(item?.unitPrice);
+      const totalPrice = Number.isFinite(Number(item?.totalPrice))
+        ? Number(item?.totalPrice)
+        : quantity * unitPrice;
+
+      return {
+        product_id: productId,
+        productName: item?.productName,
+        quantity,
+        unitPrice,
+        totalPrice
+      };
+    });
+
+    for (const item of items) {
+      if (!item.product_id || !mongoose.isValidObjectId(item.product_id)) {
+        return res.status(400).json({ message: "Invalid product id in items" });
+      }
+      if (!item.productName) {
+        return res.status(400).json({ message: "productName is required in items" });
+      }
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        return res.status(400).json({ message: "quantity must be a positive number" });
+      }
+      if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
+        return res.status(400).json({ message: "unitPrice must be a valid number" });
+      }
+      if (!Number.isFinite(item.totalPrice) || item.totalPrice < 0) {
+        return res.status(400).json({ message: "totalPrice must be a valid number" });
+      }
+    }
+
     const supplier = await Supplier.findOne({
-      _id: supplier_id,
+      _id: supplierId,
       branch_id: req.user?.branch_id
     });
 
@@ -30,17 +73,20 @@ export const createPurchaseOrder = async (req: AuthRequest, res: Response) => {
     }
 
     const totalAmount = items.reduce(
-      (sum: number, item: any) => sum + item.totalPrice,
+      (sum: number, item: any) => sum + (item.totalPrice || 0),
       0
     );
 
     const poNumber = await generatePONumber(req.user?.branch_id!);
 
+    // New POs should be reviewable/approvable immediately, so default to PENDING.
+    // (DRAFT is kept for future "save as draft" support.)
     const purchaseOrder = await PurchaseOrder.create({
       poNumber,
-      supplier_id,
+      supplier_id: supplierId,
       items,
       totalAmount,
+      status: "PENDING",
       branch_id: req.user?.branch_id,
       deliveryDate,
       notes,
@@ -52,6 +98,9 @@ export const createPurchaseOrder = async (req: AuthRequest, res: Response) => {
       purchaseOrder
     });
   } catch (error: any) {
+    if (error?.name === "CastError") {
+      return res.status(400).json({ message: "Invalid id" });
+    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -62,7 +111,12 @@ export const getPurchaseOrders = async (req: AuthRequest, res: Response) => {
     const query: any = { branch_id: req.user?.branch_id };
 
     if (status) query.status = status;
-    if (supplierId) query.supplier_id = supplierId;
+    if (supplierId) {
+      if (!mongoose.isValidObjectId(String(supplierId))) {
+        return res.status(400).json({ message: "Invalid supplier id" });
+      }
+      query.supplier_id = supplierId;
+    }
 
     const purchaseOrders = await PurchaseOrder.find(query)
       .populate("supplier_id")
@@ -110,7 +164,8 @@ export const approvePurchaseOrder = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Purchase Order not found" });
     }
 
-    if (purchaseOrder.status !== "PENDING") {
+    // Allow approving legacy DRAFT POs too.
+    if (!['PENDING', 'DRAFT'].includes(purchaseOrder.status)) {
       return res.status(400).json({
         message: `Cannot approve PO with status: ${purchaseOrder.status}`
       });
