@@ -1,23 +1,62 @@
-import { Request, Response } from "express";
+import { Response } from "express";
+import mongoose from "mongoose";
+import { AuthRequest } from "../../middleware/auth.middleware";
 import Batch from "./batch.model";
 import Product from "../products/product.model";
 
 export class BatchController {
   // Create batch (usually from GRN)
-  async createBatch(req: Request, res: Response) {
+  async createBatch(req: AuthRequest, res: Response) {
     try {
       const {
         batchNumber,
         product_id,
-        quantity,
-        costPerUnit,
+        quantity: quantityRaw,
+        costPerUnit: costPerUnitRaw,
+        costPrice,
         expiryDate,
         manufactureDate,
         supplier_id,
         grn_id
-      } = req.body;
-      const branch_id = req.body.branch_id;
-      const userId = req.body.userId;
+      } = (req as any).body;
+
+      const branch_id = (req as any).body?.branch_id ?? req.user?.branch_id;
+      const userId = req.user?._id ?? (req as any).body?.userId;
+
+      const quantity = Number(quantityRaw);
+      const costPerUnit = Number(
+        costPerUnitRaw !== undefined ? costPerUnitRaw : costPrice
+      );
+
+      if (!branch_id) {
+        return res.status(400).json({ success: false, message: "branch_id is required" });
+      }
+
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      if (!product_id || !mongoose.isValidObjectId(product_id)) {
+        return res.status(400).json({ success: false, message: "Invalid product_id" });
+      }
+
+      if (!batchNumber) {
+        return res.status(400).json({ success: false, message: "batchNumber is required" });
+      }
+
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return res.status(400).json({ success: false, message: "quantity must be a positive number" });
+      }
+
+      if (!Number.isFinite(costPerUnit) || costPerUnit <= 0) {
+        return res.status(400).json({ success: false, message: "costPerUnit must be a positive number" });
+      }
+
+      // Ensure product exists in this branch context (optional but helpful)
+      const productExists = await Product.exists({ _id: product_id });
+      if (!productExists) {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
 
       const totalCost = quantity * costPerUnit;
 
@@ -38,13 +77,16 @@ export class BatchController {
 
       await batch.save();
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: "Batch created successfully",
         data: batch
       });
     } catch (error: any) {
-      res.status(500).json({
+      if (error?.name === "ValidationError") {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+      return res.status(500).json({
         success: false,
         message: "Error creating batch",
         error: error.message

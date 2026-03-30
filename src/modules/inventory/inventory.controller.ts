@@ -6,11 +6,20 @@ import Product from "../products/product.model";
 
 export const adjustInventory = async (req: AuthRequest, res: Response) => {
   try {
-    const { productId, quantityChange, type } = req.body;
+    const body = (req.body || {}) as any;
 
-    if (!productId || quantityChange === undefined || !type) {
+    // Accept client aliases (Postman uses product_id + adjustment)
+    const productId = body.productId ?? body.product_id ?? body.product;
+    const quantityChangeRaw =
+      body.quantityChange ?? body.adjustment ?? body.quantity_change;
+    const quantityChange = Number(quantityChangeRaw);
+
+    // Default to ADJUSTMENT if client doesn't send it
+    const type = (body.type ?? "ADJUSTMENT") as string;
+
+    if (!productId || !Number.isFinite(quantityChange)) {
       return res.status(400).json({
-        message: "productId, quantityChange, and type are required"
+        message: "productId (or product_id) and quantityChange (or adjustment) are required"
       });
     }
 

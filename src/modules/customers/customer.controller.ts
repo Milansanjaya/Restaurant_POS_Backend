@@ -1,13 +1,15 @@
-import { Request, Response } from "express";
+import { Response } from "express";
+import mongoose from "mongoose";
+import { AuthRequest } from "../../middleware/auth.middleware";
 import Customer from "./customer.model";
 
 export class CustomerController {
   // Create customer
-  async createCustomer(req: Request, res: Response) {
+  async createCustomer(req: AuthRequest, res: Response) {
     try {
-      const { name, phone, email, address, dob, anniversary, notes } = req.body;
-      const branch_id = req.body.branch_id;
-      const userId = req.body.userId;
+      const { name, phone, email, address, dob, anniversary, notes } = (req as any).body;
+      const branch_id = (req as any).body?.branch_id ?? req.user?.branch_id;
+      const userId = req.user?._id ?? (req as any).body?.userId;
 
       // Check if phone already exists
       const existingCustomer = await Customer.findOne({ phone });
@@ -26,6 +28,13 @@ export class CustomerController {
         customerNumber = lastNumber + 1;
       }
       const customerCode = `CUST-${String(customerNumber).padStart(6, '0')}`;
+
+      if (!userId || !mongoose.isValidObjectId(userId)) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
 
       const customer = new Customer({
         customerCode,
@@ -48,7 +57,20 @@ export class CustomerController {
         data: customer
       });
     } catch (error: any) {
-      res.status(500).json({
+      if (error?.name === "ValidationError") {
+        return res.status(400).json({
+          success: false,
+          message: error.message
+        });
+      }
+      if (error?.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          message: "Duplicate value",
+          error: error.message
+        });
+      }
+      return res.status(500).json({
         success: false,
         message: "Error creating customer",
         error: error.message
@@ -57,7 +79,7 @@ export class CustomerController {
   }
 
   // Get all customers
-  async getAllCustomers(req: Request, res: Response) {
+  async getAllCustomers(req: AuthRequest, res: Response) {
     try {
       const { status, tier, search, page = 1, limit = 20 } = req.query;
 
@@ -102,7 +124,7 @@ export class CustomerController {
   }
 
   // Get customer by ID
-  async getCustomerById(req: Request, res: Response) {
+  async getCustomerById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
 
@@ -129,7 +151,7 @@ export class CustomerController {
   }
 
   // Get customer by phone
-  async getCustomerByPhone(req: Request, res: Response) {
+  async getCustomerByPhone(req: AuthRequest, res: Response) {
     try {
       const { phone } = req.params;
 
@@ -156,7 +178,7 @@ export class CustomerController {
   }
 
   // Update customer
-  async updateCustomer(req: Request, res: Response) {
+  async updateCustomer(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const updateData = req.body;
@@ -194,7 +216,7 @@ export class CustomerController {
   }
 
   // Delete customer
-  async deleteCustomer(req: Request, res: Response) {
+  async deleteCustomer(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
 
@@ -225,19 +247,27 @@ export class CustomerController {
   }
 
   // Get walk-in customer
-  async getWalkInCustomer(req: Request, res: Response) {
+  async getWalkInCustomer(req: AuthRequest, res: Response) {
     try {
       let walkIn = await Customer.findOne({ isWalkIn: true });
 
       if (!walkIn) {
         // Create default walk-in customer
+        const creator = req.user?._id ?? (req as any).body?.userId;
+        if (!creator || !mongoose.isValidObjectId(creator)) {
+          return res.status(401).json({
+            success: false,
+            message: "Unauthorized"
+          });
+        }
+
         walkIn = new Customer({
           customerCode: 'CUST-000000',
           name: 'Walk-in Customer',
           phone: '0000000000',
           isWalkIn: true,
           tier: 'BASIC',
-          createdBy: req.body.userId
+          createdBy: creator
         });
         await walkIn.save();
       }
@@ -256,7 +286,7 @@ export class CustomerController {
   }
 
   // Get customer purchase history
-  async getCustomerHistory(req: Request, res: Response) {
+  async getCustomerHistory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const { page = 1, limit = 10 } = req.query;
@@ -297,12 +327,40 @@ export class CustomerController {
   }
 
   // Update customer stats (called after sale)
-  async updateCustomerStats(req: Request, res: Response) {
+  async updateCustomerStats(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { orderAmount } = req.body;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid customer id"
+        });
+      }
 
-      const customer = await Customer.findById(id);
+      const rawAmount =
+        (req as any).body?.orderAmount ??
+        (req as any).body?.totalAmount ??
+        (req as any).query?.orderAmount ??
+        (req as any).query?.totalAmount;
+      const orderAmount = typeof rawAmount === "string" ? Number(rawAmount) : rawAmount;
+      if (typeof orderAmount !== "number" || Number.isNaN(orderAmount) || !Number.isFinite(orderAmount)) {
+        return res.status(400).json({
+          success: false,
+          message: "orderAmount must be a valid number. Send JSON body {\"orderAmount\": 100} or Params ?orderAmount=100"
+        });
+      }
+      if (orderAmount < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "orderAmount cannot be negative"
+        });
+      }
+
+      const branchId = (req as any).body?.branch_id ?? req.user?.branch_id;
+      const customer = branchId
+        ? await Customer.findOne({ _id: id, branch_id: branchId })
+        : await Customer.findById(id);
+
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -310,9 +368,12 @@ export class CustomerController {
         });
       }
 
-      customer.totalOrders += 1;
-      customer.totalSpent += orderAmount;
-      customer.averageOrderValue = customer.totalSpent / customer.totalOrders;
+      const totalOrders = (customer.totalOrders ?? 0) + 1;
+      const totalSpent = (customer.totalSpent ?? 0) + orderAmount;
+
+      customer.totalOrders = totalOrders;
+      customer.totalSpent = totalSpent;
+      customer.averageOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
       customer.lastVisit = new Date();
 
       // Auto-upgrade tier based on spending
@@ -326,13 +387,26 @@ export class CustomerController {
 
       await customer.save();
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: "Customer stats updated",
         data: customer
       });
     } catch (error: any) {
-      res.status(500).json({
+      if (error?.name === "CastError") {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid data",
+          error: error.message
+        });
+      }
+      if (error?.name === "ValidationError") {
+        return res.status(400).json({
+          success: false,
+          message: error.message
+        });
+      }
+      return res.status(500).json({
         success: false,
         message: "Error updating customer stats",
         error: error.message

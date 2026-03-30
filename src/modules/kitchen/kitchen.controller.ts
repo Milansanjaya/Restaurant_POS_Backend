@@ -48,7 +48,18 @@ export const updateKitchenStatus = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const order = await KitchenOrder.findById(id);
+    // Postman sometimes sends sale_id here; support both kitchenOrderId and saleId.
+    let order = await KitchenOrder.findOne({
+      _id: id,
+      branch_id: req.user?.branch_id
+    });
+
+    if (!order) {
+      order = await KitchenOrder.findOne({
+        sale: id,
+        branch_id: req.user?.branch_id
+      });
+    }
 
     if (!order) {
       return res.status(404).json({
@@ -59,10 +70,7 @@ export const updateKitchenStatus = async (req: AuthRequest, res: Response) => {
     order.status = status as any;
     await order.save();
 
-       getIO().emit("kitchen:status-updated", order);
-    getIO().to(`branch:${order.branch_id}`).emit(
-  "kitchen:status-updated",
-  order);
+    getIO().to(`branch:${order.branch_id}`).emit("kitchen:status-updated", order);
 
     res.json({
       message: "Kitchen status updated",

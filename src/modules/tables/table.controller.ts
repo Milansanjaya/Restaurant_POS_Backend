@@ -104,7 +104,7 @@ export const updateTableStatus = async (req: AuthRequest, res: Response) => {
 export const closeTable = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId } = req.params;
-    const { paymentMethod } = req.body;
+    const paymentMethod = (req as any).body?.paymentMethod ?? (req as any).query?.paymentMethod;
 
     if (!paymentMethod) {
       return res.status(400).json({

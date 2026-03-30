@@ -11,6 +11,63 @@ import Table from "../tables/table.model";
 import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
 
+// ================= GET ALL SALES =================
+export const getSales = async (req: AuthRequest, res: Response) => {
+  try {
+    const branchId = req.user?.branch_id;
+
+    if (!branchId) {
+      return res.status(401).json({
+        message: "Unauthorized"
+      });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const limit = Math.min(
+      200,
+      Math.max(1, parseInt(String(req.query.limit ?? "20"), 10) || 20)
+    );
+    const skip = (page - 1) * limit;
+
+    const query: any = { branch_id: branchId };
+
+    if (req.query.status) {
+      query.status = String(req.query.status);
+    }
+
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+
+    if ((from && !isNaN(from.getTime())) || (to && !isNaN(to.getTime()))) {
+      query.createdAt = {};
+      if (from && !isNaN(from.getTime())) query.createdAt.$gte = from;
+      if (to && !isNaN(to.getTime())) query.createdAt.$lte = to;
+    }
+
+    const [total, sales] = await Promise.all([
+      Sale.countDocuments(query),
+      Sale.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("createdBy", "name email")
+        .populate("items.product", "name price")
+    ]);
+
+    res.json({
+      page,
+      limit,
+      total,
+      sales
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 // ================= CREATE / ADD TO SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
   try {
@@ -361,7 +418,9 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 export const closeTableSale = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId } = req.params;
-    const { paymentMethod } = req.body;
+    const body = (req.body || {}) as any;
+    const paymentMethod =
+      body.paymentMethod || (req.query.paymentMethod as string | undefined);
 
     if (!paymentMethod) {
       return res.status(400).json({
