@@ -61,11 +61,13 @@ BatchSchema.index({ expiryDate: 1 });
 BatchSchema.index({ alertStatus: 1 });
 
 // Calculate days until expiry before saving
-BatchSchema.pre('save', function(next) {
+BatchSchema.pre('save', function () {
   const now = new Date();
   const expiry = new Date(this.expiryDate);
-  this.daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  
+  this.daysUntilExpiry = Math.ceil(
+    (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
   // Update alert status based on days until expiry
   if (this.daysUntilExpiry < 0) {
     this.alertStatus = 'EXPIRED';
@@ -77,13 +79,11 @@ BatchSchema.pre('save', function(next) {
   } else {
     this.alertStatus = 'NORMAL';
   }
-  
+
   // Update status if depleted
   if (this.remainingQuantity <= 0) {
     this.status = 'DEPLETED';
   }
-  
-  next();
 });
 
 export default mongoose.model<IBatch>("Batch", BatchSchema);

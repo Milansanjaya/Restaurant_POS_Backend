@@ -13,6 +13,7 @@ export interface IGRNItem {
 
 export interface IGRNBatch {
   batchNumber: string;
+  product_id?: mongoose.Types.ObjectId;
   expiryDate: Date;
   quantity: number;
   costPerUnit: number;
@@ -51,6 +52,8 @@ const GRNItemSchema = new Schema({
 
 const BatchSchema = new Schema({
   batchNumber: { type: String, required: true },
+  // Optional: if provided, approval can create correct product batches per item
+  product_id: { type: Schema.Types.ObjectId, ref: "Product" },
   expiryDate: { type: Date, required: true },
   quantity: { type: Number, required: true },
   costPerUnit: { type: Number, required: true }
