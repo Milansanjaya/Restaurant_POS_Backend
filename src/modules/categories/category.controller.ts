@@ -1,21 +1,34 @@
-import { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthRequest } from "../../middleware/auth.middleware";
 import Category from "./category.model";
 
 export class CategoryController {
   // Create category
-  async createCategory(req: Request, res: Response) {
+  async createCategory(req: AuthRequest, res: Response) {
     try {
       const { name, description, parentId, icon, image, displayOrder } = req.body;
       const branch_id = req.body.branch_id;
-      const userId = req.body.userId;
+
+      // Prefer JWT user; keep req.body.userId as backwards-compatible fallback
+      const createdBy = req.user?._id ?? req.body.userId;
+      if (!createdBy) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
 
       // Calculate level
       let level = 0;
       if (parentId) {
-        const parent = await Category.findById(parentId);
-        if (parent) {
-          level = parent.level + 1;
+        const parent = await Category.findOne({ _id: parentId, branch_id });
+        if (!parent) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid parent category"
+          });
         }
+        level = parent.level + 1;
       }
 
       const category = new Category({
@@ -27,7 +40,7 @@ export class CategoryController {
         image,
         displayOrder: displayOrder || 0,
         branch_id,
-        createdBy: userId
+        createdBy
       });
 
       await category.save();
@@ -38,7 +51,8 @@ export class CategoryController {
         data: category
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "ValidationError" ? 400 : 500;
+      res.status(status).json({
         success: false,
         message: "Error creating category",
         error: error.message
@@ -47,7 +61,7 @@ export class CategoryController {
   }
 
   // Get all categories (tree structure)
-  async getAllCategories(req: Request, res: Response) {
+  async getAllCategories(req: AuthRequest, res: Response) {
     try {
       const branch_id = req.body.branch_id;
       const { isActive } = req.query;
@@ -58,17 +72,20 @@ export class CategoryController {
       }
 
       const categories = await Category.find(query)
-        .populate('parentId', 'name')
         .sort({ displayOrder: 1, name: 1 });
+
+      const getParentIdValue = (cat: any) => {
+        const p = cat.parentId;
+        return p && typeof p === "object" && p._id ? p._id : p;
+      };
 
       // Build tree structure
       const buildTree = (parentId: any = null) => {
         return categories
           .filter(cat => {
-            if (parentId === null) {
-              return cat.parentId === null || cat.parentId === undefined;
-            }
-            return cat.parentId?.toString() === parentId.toString();
+            const p = getParentIdValue(cat);
+            if (parentId === null) return p === null || p === undefined;
+            return p?.toString() === parentId.toString();
           })
           .map(cat => ({
             ...cat.toObject(),
@@ -92,7 +109,7 @@ export class CategoryController {
   }
 
   // Get category by ID
-  async getCategoryById(req: Request, res: Response) {
+  async getCategoryById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const branch_id = req.body.branch_id;
@@ -112,16 +129,17 @@ export class CategoryController {
         data: category
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error fetching category",
+        message: status === 400 ? "Invalid category id" : "Error fetching category",
         error: error.message
       });
     }
   }
 
   // Update category
-  async updateCategory(req: Request, res: Response) {
+  async updateCategory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const branch_id = req.body.branch_id;
@@ -149,16 +167,17 @@ export class CategoryController {
         data: category
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error updating category",
+        message: status === 400 ? "Invalid category id" : "Error updating category",
         error: error.message
       });
     }
   }
 
   // Delete category
-  async deleteCategory(req: Request, res: Response) {
+  async deleteCategory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const branch_id = req.body.branch_id;
@@ -190,9 +209,10 @@ export class CategoryController {
         message: "Category deleted successfully"
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error deleting category",
+        message: status === 400 ? "Invalid category id" : "Error deleting category",
         error: error.message
       });
     }

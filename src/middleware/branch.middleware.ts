@@ -10,7 +10,10 @@ export const enforceBranch = (
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  req.body.branch_id = req.user.branch_id;
+  // Some requests (GET/DELETE) may not have a parsed body.
+  // Ensure we always have an object so controllers can read branch_id consistently.
+  (req as any).body = (req as any).body ?? {};
+  (req as any).body.branch_id = req.user.branch_id;
 
   next();
 };

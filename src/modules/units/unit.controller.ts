@@ -1,12 +1,20 @@
-import { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthRequest } from "../../middleware/auth.middleware";
 import Unit from "./unit.model";
 
 export class UnitController {
   // Create unit
-  async createUnit(req: Request, res: Response) {
+  async createUnit(req: AuthRequest, res: Response) {
     try {
       const { name, shortCode, type, baseUnit, conversionFactor } = req.body;
-      const userId = req.body.userId;
+
+      const createdBy = req.user?._id ?? req.body.userId;
+      if (!createdBy) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
 
       const unit = new Unit({
         name,
@@ -14,7 +22,7 @@ export class UnitController {
         type,
         baseUnit,
         conversionFactor: conversionFactor || 1,
-        createdBy: userId
+        createdBy
       });
 
       await unit.save();
@@ -25,7 +33,8 @@ export class UnitController {
         data: unit
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "ValidationError" ? 400 : 500;
+      res.status(status).json({
         success: false,
         message: "Error creating unit",
         error: error.message
@@ -34,7 +43,7 @@ export class UnitController {
   }
 
   // Get all units
-  async getAllUnits(req: Request, res: Response) {
+  async getAllUnits(req: AuthRequest, res: Response) {
     try {
       const { type, isActive } = req.query;
 
@@ -60,7 +69,7 @@ export class UnitController {
   }
 
   // Get unit by ID
-  async getUnitById(req: Request, res: Response) {
+  async getUnitById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
 
@@ -79,16 +88,17 @@ export class UnitController {
         data: unit
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error fetching unit",
+        message: status === 400 ? "Invalid unit id" : "Error fetching unit",
         error: error.message
       });
     }
   }
 
   // Update unit
-  async updateUnit(req: Request, res: Response) {
+  async updateUnit(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const updateData = req.body;
@@ -114,16 +124,17 @@ export class UnitController {
         data: unit
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error updating unit",
+        message: status === 400 ? "Invalid unit id" : "Error updating unit",
         error: error.message
       });
     }
   }
 
   // Delete unit
-  async deleteUnit(req: Request, res: Response) {
+  async deleteUnit(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
 
@@ -145,9 +156,10 @@ export class UnitController {
         message: "Unit deleted successfully"
       });
     } catch (error: any) {
-      res.status(500).json({
+      const status = error?.name === "CastError" ? 400 : 500;
+      res.status(status).json({
         success: false,
-        message: "Error deleting unit",
+        message: status === 400 ? "Invalid unit id" : "Error deleting unit",
         error: error.message
       });
     }
