@@ -155,7 +155,19 @@ export const getSupplierLedger = async (req: AuthRequest, res: Response) => {
 
 export const recordSupplierPayment = async (req: AuthRequest, res: Response) => {
   try {
-    const { supplierId, amount, description } = req.body;
+    // Preferred: /api/suppliers/:id/payment
+    const supplierId = req.params.id || req.body?.supplierId;
+    const amountRaw = req.body?.amount;
+    const description = req.body?.description;
+
+    if (!supplierId) {
+      return res.status(400).json({ message: "supplierId is required" });
+    }
+
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ message: "amount must be a positive number" });
+    }
 
     const supplier = await Supplier.findOne({
       _id: supplierId,
@@ -177,7 +189,7 @@ export const recordSupplierPayment = async (req: AuthRequest, res: Response) => 
     });
 
     // Update outstanding balance
-    const newBalance = Math.max(supplier.outstandingBalance - amount, 0);
+    const newBalance = Math.max((supplier.outstandingBalance || 0) - amount, 0);
     await Supplier.findByIdAndUpdate(supplierId, {
       outstandingBalance: newBalance
     });
@@ -187,6 +199,9 @@ export const recordSupplierPayment = async (req: AuthRequest, res: Response) => 
       outstandingBalance: newBalance
     });
   } catch (error: any) {
+    if (error?.name === "CastError") {
+      return res.status(400).json({ message: "Invalid supplier id" });
+    }
     res.status(500).json({ message: error.message });
   }
 };

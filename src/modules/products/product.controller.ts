@@ -11,13 +11,29 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       name,
       sku,
       barcode,
-      category,
       price,
       cost,
-      taxRate,
-      trackStock,
       preparationTime
     } = req.body;
+
+    // Accept common client field names
+    const category = req.body.category ?? req.body.category_id ?? req.body.categoryId;
+    const taxRate = req.body.taxRate ?? req.body.tax_rate ?? 0;
+    const trackStock = req.body.trackStock ?? req.body.track_stock ?? false;
+
+    const branch_id = req.user?.branch_id;
+    const createdBy = req.user?._id;
+
+    if (!branch_id || !createdBy) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!name || !sku || !category || price === undefined || cost === undefined) {
+      return res.status(400).json({
+        message: "Missing required fields",
+        required: ["name", "sku", "category", "price", "cost"]
+      });
+    }
 
     const existing = await Product.findOne({ sku });
     if (existing) {
@@ -34,15 +50,16 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       taxRate,
       trackStock,
       preparationTime,
-      branch_id: req.user?.branch_id,
-      createdBy: req.user?._id
+      branch_id,
+      createdBy
     });
 
-    await Inventory.create({
-  product: product._id,
-  branch_id: req.user?.branch_id,
-  stockQuantity: 0
-});
+    // Ensure inventory row exists (avoid unique index crash)
+    await Inventory.updateOne(
+      { product: product._id, branch_id },
+      { $setOnInsert: { stockQuantity: 0 } },
+      { upsert: true }
+    );
 
     res.status(201).json({
       message: "Product created successfully",
@@ -50,8 +67,9 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     });
 
   } catch (error: any) {
-    res.status(500).json({
-      message: "Internal server error",
+    const status = error?.name === "ValidationError" || error?.code === 11000 ? 400 : 500;
+    res.status(status).json({
+      message: status === 400 ? "Invalid product data" : "Internal server error",
       error: error.message
     });
   }

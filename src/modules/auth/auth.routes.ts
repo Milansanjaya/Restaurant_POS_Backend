@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { registerAdmin, login } from "./auth.controller";
 import { authenticate } from "../../middleware/auth.middleware";
-import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 
 const router = Router();
