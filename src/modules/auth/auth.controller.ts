@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../users/user.model";
 import Role from "../roles/role.model";
+import { AuthRequest } from "../../middleware/auth.middleware";
 
 export const registerAdmin = async (req: Request, res: Response) => {
   try {
@@ -41,7 +42,13 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).populate("role");
+    const user = await User.findOne({ email }).populate({
+      path: "role",
+      populate: {
+        path: "permissions",
+        model: "Permission"
+      }
+    });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -58,16 +65,63 @@ export const login = async (req: Request, res: Response) => {
       },
       process.env.JWT_SECRET as string,
       { expiresIn: "1d" }
-
-      
     );
 
-    res.json({ token });
-  }catch (error: any) {
-  console.error("LOGIN ERROR:", error);
-  res.status(500).json({
-    message: "Internal server error",
-    error: error.message
-  });
-}
+    // Return user info with permissions
+    const role = user.role as any;
+    const permissions = role?.permissions?.map((p: any) => p.name) || [];
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        branch_id: user.branch_id,
+        role: {
+          _id: role?._id,
+          name: role?.name
+        },
+        permissions
+      }
+    });
+  } catch (error: any) {
+    console.error("LOGIN ERROR:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+// Get current user info
+export const getMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const role = user.role as any;
+    const permissions = role?.permissions?.map((p: any) => p.name) || [];
+
+    res.json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        branch_id: user.branch_id,
+        role: {
+          _id: role?._id,
+          name: role?.name
+        },
+        permissions
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
 };

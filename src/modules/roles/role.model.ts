@@ -2,12 +2,14 @@ import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface IRole extends Document {
   name: string;
+  description?: string;
   permissions: Types.ObjectId[];
 }
 
 const RoleSchema = new Schema<IRole>(
   {
     name: { type: String, required: true, unique: true },
+    description: { type: String },
     permissions: [{ type: Schema.Types.ObjectId, ref: "Permission" }]
   },
   { timestamps: true }

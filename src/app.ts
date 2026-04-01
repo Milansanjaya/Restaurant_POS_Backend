@@ -23,6 +23,8 @@ import categoryRoutes from "./modules/categories/category.routes";
 import unitRoutes from "./modules/units/unit.routes";
 import configRoutes from "./modules/config/config.routes";
 import returnRoutes from "./modules/returns/return.routes";
+import roleRoutes from "./modules/roles/role.routes";
+import userRoutes from "./modules/users/user.routes";
 
 const app: Application = express();
 
@@ -60,6 +62,8 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/units", unitRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/returns", returnRoutes);
+app.use("/api/roles", roleRoutes);
+app.use("/api/users", userRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {
