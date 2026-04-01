@@ -21,14 +21,14 @@ router.post(
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_PURCHASE_ORDER"),
+  authorize("VIEW_PURCHASE_ORDERS"),
   getPurchaseOrders
 );
 
 router.get(
   "/:id",
   authenticate,
-  authorize("VIEW_PURCHASE_ORDER"),
+  authorize("VIEW_PURCHASE_ORDERS"),
   getPurchaseOrderById
 );
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createProduct,getProducts,updateProduct,deleteProduct,getProductById } from "./product.controller";
+import { createProduct,getProducts,updateProduct,deleteProduct,getProductById,toggleAvailability } from "./product.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 
@@ -15,13 +15,13 @@ router.post(
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_PRODUCTS"),
   getProducts
 );
 router.get(
   "/:id",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_PRODUCTS"),
   getProductById
 );
 router.put(
@@ -29,6 +29,13 @@ router.put(
   authenticate,
   authorize("EDIT_PRODUCT"),
   updateProduct
+);
+
+router.patch(
+  "/:id/availability",
+  authenticate,
+  authorize("EDIT_PRODUCT"),
+  toggleAvailability
 );
 
 router.delete(

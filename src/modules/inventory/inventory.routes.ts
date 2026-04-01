@@ -8,17 +8,17 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_INVENTORY"),
   getBranchInventory
 );
 
 router.post(
   "/adjust",
   authenticate,
-  authorize("EDIT_PRODUCT"),
+  authorize("ADJUST_INVENTORY"),
   adjustInventory
 );
 
-router.post("/fix", authenticate, fixInventory);
+router.post("/fix", authenticate, authorize("ADJUST_INVENTORY"), fixInventory);
 
 export default router;

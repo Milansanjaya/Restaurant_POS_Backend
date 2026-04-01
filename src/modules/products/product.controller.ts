@@ -188,7 +188,40 @@ export const getProductById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.json(product);
+    res.json({ product });
+
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+// Toggle product availability (for daily stock status)
+export const toggleAvailability = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { isAvailable } = req.body;
+
+    const product = await Product.findOneAndUpdate(
+      {
+        _id: id,
+        branch_id: req.user?.branch_id,
+        isActive: true
+      },
+      { isAvailable: isAvailable },
+      { new: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.json({ 
+      message: `Product marked as ${isAvailable ? 'available' : 'unavailable'}`,
+      product 
+    });
 
   } catch (error: any) {
     res.status(500).json({

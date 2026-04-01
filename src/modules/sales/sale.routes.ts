@@ -16,7 +16,7 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_SALES"),
   getSales
 );
 
@@ -35,6 +35,7 @@ router.post(
 router.post(
   "/:tableId/close",
   authenticate,
+  authorize("CREATE_SALE"),
   closeTableSale
 );
 router.post(
@@ -47,7 +48,7 @@ router.post(
 router.get(
   "/:saleId/invoice",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_SALES"),
   getInvoice
 );
 

@@ -8,28 +8,28 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_RESERVATIONS"),
   getReservations
 );
 
 router.post(
   "/",
   authenticate,
-  authorize("CREATE_SALE"),
+  authorize("CREATE_RESERVATION"),
   createReservation
 );
 
 router.patch(
   "/:id/status",
   authenticate,
-  authorize("CREATE_SALE"),
+  authorize("MANAGE_RESERVATIONS"),
   updateReservationStatus
 );
 
 router.post(
   "/:id/seat",
   authenticate,
-  authorize("CREATE_SALE"),
+  authorize("MANAGE_RESERVATIONS"),
   seatReservation
 );
 

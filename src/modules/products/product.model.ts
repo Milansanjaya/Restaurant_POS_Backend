@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   taxRate: number;
   branch_id: string;
   isActive: boolean;
+  isAvailable: boolean;
   trackStock: boolean;
   preparationTime?: number;
   createdBy: mongoose.Types.ObjectId;
@@ -26,6 +27,7 @@ const ProductSchema = new Schema<IProduct>(
     taxRate: { type: Number, default: 0 },
     branch_id: { type: String, required: true },
     isActive: { type: Boolean, default: true },
+    isAvailable: { type: Boolean, default: true },
     trackStock: { type: Boolean, default: false },
     lowStockThreshold: { type: Number, default: 5 },
     preparationTime: { type: Number },

@@ -13,27 +13,28 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_TABLES"),
   getTables
 );
 
 router.post(
   "/",
   authenticate,
-  authorize("EDIT_PRODUCT"),
+  authorize("MANAGE_TABLES"),
   createTable
 );
 
 router.patch(
   "/:id/status",
   authenticate,
-  authorize("EDIT_PRODUCT"),
+  authorize("MANAGE_TABLES"),
   updateTableStatus
 );
 
 router.post(
   "/:tableId/close",
   authenticate,
+  authorize("MANAGE_TABLES"),
   closeTable
 );
 

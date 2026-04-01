@@ -23,14 +23,14 @@ router.post(
 router.get(
   "/",
   authenticate,
-  authorize("VIEW_SUPPLIER"),
+  authorize("VIEW_SUPPLIERS"),
   getSuppliers
 );
 
 router.get(
   "/:id",
   authenticate,
-  authorize("VIEW_SUPPLIER"),
+  authorize("VIEW_SUPPLIERS"),
   getSupplierById
 );
 
@@ -51,7 +51,7 @@ router.delete(
 router.get(
   "/:id/ledger",
   authenticate,
-  authorize("VIEW_SUPPLIER"),
+  authorize("VIEW_SUPPLIERS"),
   getSupplierLedger
 );
 
