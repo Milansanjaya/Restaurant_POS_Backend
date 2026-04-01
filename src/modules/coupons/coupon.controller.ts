@@ -185,3 +185,26 @@ export const toggleCoupon = async (req: Request, res: Response) => {
     });
   }
 };
+
+// ================= DELETE COUPON =================
+export const deleteCoupon = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const coupon = await Coupon.findByIdAndDelete(id);
+
+    if (!coupon) {
+      return res.status(404).json({
+        message: "Coupon not found"
+      });
+    }
+
+    res.json({
+      message: "Coupon deleted successfully"
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};

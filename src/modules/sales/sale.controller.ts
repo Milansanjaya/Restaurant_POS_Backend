@@ -359,26 +359,31 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       await sale.save();
     }
 
-    // ✅ Deduct inventory + log
+    // ✅ Deduct inventory + log (only for products with trackStock enabled)
     for (const item of processedItems) {
-      const inventory = await Inventory.findOne({
-        product: item.product,
-        branch_id: req.user?.branch_id,
-        isActive: true
-      });
-
-      if (inventory) {
-        inventory.stockQuantity -= item.quantity;
-        await inventory.save();
-
-        await InventoryLog.create({
+      const product = await Product.findById(item.product);
+      
+      // Only deduct stock for products that track inventory
+      if (product?.trackStock) {
+        const inventory = await Inventory.findOne({
           product: item.product,
           branch_id: req.user?.branch_id,
-          quantityChange: -item.quantity,
-          type: "SALE",
-          referenceId: sale._id,
-          performedBy: req.user?._id
+          isActive: true
         });
+
+        if (inventory) {
+          inventory.stockQuantity -= item.quantity;
+          await inventory.save();
+
+          await InventoryLog.create({
+            product: item.product,
+            branch_id: req.user?.branch_id,
+            quantityChange: -item.quantity,
+            type: "SALE",
+            referenceId: sale._id,
+            performedBy: req.user?._id
+          });
+        }
       }
     }
 
