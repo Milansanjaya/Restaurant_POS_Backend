@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface ISale extends Document {
   invoiceNumber: string;
   branch_id: string;
+  customer_id?: mongoose.Types.ObjectId;  // Optional customer for loyalty tracking
 
   items: {
     product: mongoose.Types.ObjectId;
@@ -10,6 +11,8 @@ export interface ISale extends Document {
     price: number;
     taxRate: number;
     subtotal: number;
+    batch_id?: mongoose.Types.ObjectId;  // FIFO: Track which batch was used
+    batchNumber?: string;                 // FIFO: Audit trail
   }[];
 
   subtotal: number;
@@ -61,6 +64,8 @@ const SaleSchema = new Schema<ISale>(
 
     branch_id: { type: String, required: true },
 
+    customer_id: { type: Schema.Types.ObjectId, ref: "Customer" },  // Optional customer for loyalty
+
     items: [
       {
         product: {
@@ -71,7 +76,9 @@ const SaleSchema = new Schema<ISale>(
         quantity: { type: Number, required: true },
         price: { type: Number, required: true },
         taxRate: { type: Number, required: true },
-        subtotal: { type: Number, required: true }
+        subtotal: { type: Number, required: true },
+        batch_id: { type: Schema.Types.ObjectId, ref: "Batch" },  // FIFO tracking
+        batchNumber: { type: String }                              // FIFO audit trail
       }
     ],
 

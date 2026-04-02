@@ -338,6 +338,47 @@ export class BatchController {
       });
     }
   }
+
+  // Get FIFO-ordered batches for a product (for sales/inventory)
+  async getBatchesByProduct(req: AuthRequest, res: Response) {
+    try {
+      const { productId } = req.params;
+      const branchId = req.user?.branch_id;
+
+      if (!branchId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Get batches sorted by receivedDate (FIFO order)
+      const batches = await Batch.find({
+        product_id: productId,
+        branch_id: branchId,
+        status: "ACTIVE",
+        remainingQuantity: { $gt: 0 }
+      })
+      .sort({ receivedDate: 1 })  // FIFO: Oldest first
+      .populate("product_id", "name sku")
+      .populate("supplier_id", "name");
+
+      // Calculate total available quantity
+      const totalAvailable = batches.reduce(
+        (sum, b) => sum + b.remainingQuantity,
+        0
+      );
+
+      return res.json({
+        success: true,
+        batches,
+        totalAvailable,
+        batchCount: batches.length
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Failed to get batches",
+        error: error.message
+      });
+    }
+  }
 }
 
 export default new BatchController();

@@ -10,6 +10,7 @@ import { getIO } from "../../infrastructure/socket";
 import Table from "../tables/table.model";
 import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
+import FIFOBatchService from "./fifoBatchService";  // FIFO service
 
 // ================= GET ALL SALES =================
 export const getSales = async (req: AuthRequest, res: Response) => {
@@ -89,7 +90,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       reservationId,
       discountType,
       discountValue,
-      couponCode
+      couponCode,
+      customerId  // Optional customer for loyalty tracking
     } = req.body;
 
     let subtotal = 0;
@@ -251,6 +253,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       sale = await Sale.create({
         invoiceNumber,
         branch_id: req.user?.branch_id,
+        customer_id: customerId || undefined,  // Optional customer for loyalty
         items: processedItems.map((item) => ({
           product: item.product,
           quantity: item.quantity,
@@ -359,33 +362,57 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       await sale.save();
     }
 
-    // ✅ Deduct inventory + log (only for products with trackStock enabled)
-    for (const item of processedItems) {
+    // ✅ Deduct inventory using FIFO batch system (for products with trackStock enabled)
+    for (let i = 0; i < processedItems.length; i++) {
+      const item = processedItems[i];
       const product = await Product.findById(item.product);
       
       // Only deduct stock for products that track inventory
       if (product?.trackStock) {
-        const inventory = await Inventory.findOne({
-          product: item.product,
-          branch_id: req.user?.branch_id,
-          isActive: true
-        });
-
-        if (inventory) {
-          inventory.stockQuantity -= item.quantity;
-          await inventory.save();
-
-          await InventoryLog.create({
+        try {
+          // Try FIFO batch deduction first
+          const batchDeductions = await FIFOBatchService.deductFromBatchesFIFO(
+            item.product,
+            item.quantity,
+            req.user?.branch_id || '',
+            sale._id,
+            req.user?._id
+          );
+          
+          // Update sale item with batch info (use first batch for simplicity)
+          if (batchDeductions.length > 0) {
+            sale.items[i].batch_id = batchDeductions[0].batch_id;
+            sale.items[i].batchNumber = batchDeductions[0].batchNumber;
+          }
+        } catch (batchError) {
+          // Fallback: If no batches available, use traditional inventory deduction
+          console.log(`FIFO fallback for product ${item.product}: ${batchError}`);
+          
+          const inventory = await Inventory.findOne({
             product: item.product,
             branch_id: req.user?.branch_id,
-            quantityChange: -item.quantity,
-            type: "SALE",
-            referenceId: sale._id,
-            performedBy: req.user?._id
+            isActive: true
           });
+
+          if (inventory) {
+            inventory.stockQuantity -= item.quantity;
+            await inventory.save();
+
+            await InventoryLog.create({
+              product: item.product,
+              branch_id: req.user?.branch_id,
+              quantityChange: -item.quantity,
+              type: "SALE",
+              referenceId: sale._id,
+              performedBy: req.user?._id
+            });
+          }
         }
       }
     }
+    
+    // Save sale with batch info
+    await sale.save();
 
     // ✅ Kitchen order for only newly added items
     const kitchenOrder = await KitchenOrder.create({

@@ -11,6 +11,9 @@ export class CustomerController {
       const branch_id = (req as any).body?.branch_id ?? req.user?.branch_id;
       const userId = req.user?._id ?? (req as any).body?.userId;
 
+      console.log("Create Customer - userId:", userId, "branch_id:", branch_id);
+      console.log("Create Customer - body:", { name, phone, email });
+
       // Check if phone already exists
       const existingCustomer = await Customer.findOne({ phone });
       if (existingCustomer) {
@@ -20,19 +23,33 @@ export class CustomerController {
         });
       }
 
-      // Generate customer code
-      const lastCustomer = await Customer.findOne().sort({ createdAt: -1 });
+      // Generate customer code - find highest existing code number
+      const lastCustomer = await Customer.findOne({ customerCode: { $regex: /^CUST-\d+$/ } })
+        .sort({ customerCode: -1 })
+        .select('customerCode');
+      
       let customerNumber = 1;
       if (lastCustomer && lastCustomer.customerCode) {
-        const lastNumber = parseInt(lastCustomer.customerCode.split('-')[1]);
-        customerNumber = lastNumber + 1;
+        const match = lastCustomer.customerCode.match(/CUST-(\d+)/);
+        if (match) {
+          customerNumber = parseInt(match[1], 10) + 1;
+        }
       }
+      
+      // Fallback: count total customers to ensure unique code
+      if (customerNumber === 1) {
+        const totalCustomers = await Customer.countDocuments();
+        customerNumber = totalCustomers + 1;
+      }
+      
       const customerCode = `CUST-${String(customerNumber).padStart(6, '0')}`;
+      console.log("Generated customerCode:", customerCode);
 
       if (!userId || !mongoose.isValidObjectId(userId)) {
+        console.error("Invalid userId:", userId);
         return res.status(401).json({
           success: false,
-          message: "Unauthorized"
+          message: "Unauthorized - Invalid user ID"
         });
       }
 
@@ -57,6 +74,7 @@ export class CustomerController {
         data: customer
       });
     } catch (error: any) {
+      console.error("Create customer error:", error);
       if (error?.name === "ValidationError") {
         return res.status(400).json({
           success: false,

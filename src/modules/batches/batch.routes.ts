@@ -12,6 +12,10 @@ router.use(enforceBranch);
 // Batch CRUD
 router.post("/", authorize("MANAGE_BATCHES"), batchController.createBatch);
 router.get("/", authorize("VIEW_BATCHES"), batchController.getAllBatches);
+
+// FIFO: Get batches for a product (sorted by receivedDate - oldest first)
+router.get("/product/:productId", authorize("VIEW_BATCHES"), batchController.getBatchesByProduct);
+
 router.get("/:id", authorize("VIEW_BATCHES"), batchController.getBatchById);
 
 // Expiry management

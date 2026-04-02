@@ -208,3 +208,102 @@ export const deleteCoupon = async (req: Request, res: Response) => {
     });
   }
 };
+
+// ================= VALIDATE COUPON =================
+export const validateCoupon = async (req: Request, res: Response) => {
+  try {
+    const { code, orderTotal } = req.body;
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code is required"
+      });
+    }
+
+    const coupon = await Coupon.findOne({ code: code.toUpperCase() });
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid coupon code"
+      });
+    }
+
+    if (!coupon.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon is not active"
+      });
+    }
+
+    const now = new Date();
+    
+    if (coupon.validFrom && coupon.validFrom > now) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon is not yet valid"
+      });
+    }
+
+    if (coupon.expiryDate < now) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon has expired"
+      });
+    }
+
+    if (coupon.usageLimit && (coupon.timesUsed || 0) >= coupon.usageLimit) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon usage limit reached"
+      });
+    }
+
+    const total = toNumber(orderTotal) || 0;
+    
+    if (coupon.minOrderValue && total < coupon.minOrderValue) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum order value is Rs. ${coupon.minOrderValue}`
+      });
+    }
+
+    // Calculate discount
+    let discount = 0;
+    if (coupon.discountType === "PERCENTAGE") {
+      discount = (total * coupon.value) / 100;
+      // Apply max discount cap if exists
+      if (coupon.maxDiscount && discount > coupon.maxDiscount) {
+        discount = coupon.maxDiscount;
+      }
+    } else {
+      // FLAT discount
+      discount = coupon.value;
+    }
+
+    // Discount cannot exceed order total
+    if (discount > total) {
+      discount = total;
+    }
+
+    res.json({
+      success: true,
+      message: "Coupon is valid",
+      coupon: {
+        code: coupon.code,
+        discountType: coupon.discountType,
+        value: coupon.value,
+        maxDiscount: coupon.maxDiscount,
+        minOrderValue: coupon.minOrderValue
+      },
+      discount: Math.round(discount * 100) / 100,
+      finalTotal: Math.round((total - discount) * 100) / 100
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

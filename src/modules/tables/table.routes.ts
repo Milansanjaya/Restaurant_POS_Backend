@@ -4,6 +4,8 @@ import { authorize } from "../../middleware/permission.middleware";
 import {
   createTable,
   getTables,
+  updateTable,
+  deleteTable,
   updateTableStatus,
   closeTable
 } from "./table.controller";
@@ -22,6 +24,20 @@ router.post(
   authenticate,
   authorize("MANAGE_TABLES"),
   createTable
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorize("MANAGE_TABLES"),
+  updateTable
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  authorize("MANAGE_TABLES"),
+  deleteTable
 );
 
 router.patch(

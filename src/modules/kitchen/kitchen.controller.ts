@@ -90,8 +90,14 @@ export const getKitchenDashboard = async (
 ) => {
   try {
     const branchId = req.user?.branch_id;
+    
+    // Debug logging
+    console.log("🍳 Kitchen Dashboard Request");
+    console.log("👤 User:", req.user?.name, req.user?.email);
+    console.log("🏢 User Branch ID:", branchId);
+    console.log("👮 User Role:", req.user?.role?.name);
 
-    const [pendingCount, preparingCount, readyCount, orders] =
+    const [pendingCount, preparingCount, readyCount, orders, allOrders] =
       await Promise.all([
         KitchenOrder.countDocuments({
           branch_id: branchId,
@@ -110,8 +116,18 @@ export const getKitchenDashboard = async (
           status: { $in: ["PENDING", "PREPARING", "READY"] }
         })
           .sort({ createdAt: 1 })
-          .populate("sale")
+          .populate("sale"),
+        // Debug: Get all orders to check branch_ids
+        KitchenOrder.find({ status: { $in: ["PENDING", "PREPARING", "READY"] } })
+          .select("branch_id status")
+          .limit(5)
       ]);
+    
+    // Debug: Show what branch_ids exist in orders
+    const branchIds = [...new Set(allOrders.map((o: any) => o.branch_id))];
+    console.log("📋 Orders found for this branch:", orders.length);
+    console.log("🌐 All branch_ids in kitchen orders:", branchIds);
+    console.log("❓ Branch match?", branchIds.includes(branchId));
 
     const enrichedOrders = [];
 
@@ -153,5 +169,47 @@ export const getKitchenDashboard = async (
       message: "Internal server error",
       error: error.message
     });
+  }
+};
+
+// Debug endpoint to check kitchen orders and branch IDs
+export const debugKitchen = async (req: AuthRequest, res: Response) => {
+  try {
+    const userBranchId = req.user?.branch_id;
+    
+    // Get all kitchen orders
+    const allOrders = await KitchenOrder.find({
+      status: { $in: ["PENDING", "PREPARING", "READY"] }
+    }).select("branch_id status createdAt").limit(20);
+    
+    // Get unique branch IDs
+    const branchIds = [...new Set(allOrders.map(o => o.branch_id))];
+    
+    // Get orders for this user's branch
+    const userOrders = await KitchenOrder.countDocuments({
+      branch_id: userBranchId,
+      status: { $in: ["PENDING", "PREPARING", "READY"] }
+    });
+    
+    res.json({
+      currentUser: {
+        name: req.user?.name,
+        email: req.user?.email,
+        branch_id: userBranchId,
+        role: req.user?.role?.name
+      },
+      kitchenData: {
+        totalActiveOrders: allOrders.length,
+        ordersForUserBranch: userOrders,
+        allBranchIdsInOrders: branchIds,
+        branchMatch: branchIds.includes(userBranchId)
+      },
+      sampleOrders: allOrders.slice(0, 5).map(o => ({
+        branch_id: o.branch_id,
+        status: o.status
+      }))
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 };
