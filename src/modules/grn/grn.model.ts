@@ -9,6 +9,8 @@ export interface IGRNItem {
   totalPrice: number;
   qualityStatus: "ACCEPTED" | "REJECTED" | "PARTIAL";
   rejectionReason?: string;
+  batchNumber?: string;
+  expiryDate?: Date;
 }
 
 export interface IGRNBatch {
@@ -47,7 +49,9 @@ const GRNItemSchema = new Schema({
     enum: ["ACCEPTED", "REJECTED", "PARTIAL"],
     default: "ACCEPTED"
   },
-  rejectionReason: { type: String }
+  rejectionReason: { type: String },
+  batchNumber: { type: String },
+  expiryDate: { type: Date }
 });
 
 const BatchSchema = new Schema({

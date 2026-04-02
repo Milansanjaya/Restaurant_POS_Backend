@@ -68,7 +68,9 @@ export const createGRN = async (req: AuthRequest, res: Response) => {
         unitPrice,
         totalPrice,
         qualityStatus,
-        rejectionReason: item?.rejectionReason
+        rejectionReason: item?.rejectionReason,
+        batchNumber: item?.batchNumber,
+        expiryDate: item?.expiryDate
       };
     });
 
