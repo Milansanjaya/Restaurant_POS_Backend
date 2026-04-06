@@ -8,11 +8,23 @@ export class UnitController {
     try {
       const { name, shortCode, type, baseUnit, conversionFactor } = req.body;
 
+      console.log('[CREATE UNIT] Request body:', { name, shortCode, type, baseUnit, conversionFactor });
+      console.log('[CREATE UNIT] req.user:', req.user);
+
       const createdBy = req.user?._id ?? req.body.userId;
       if (!createdBy) {
+        console.error('[CREATE UNIT] No createdBy - req.user:', req.user);
         return res.status(401).json({
           success: false,
-          message: "Unauthorized"
+          message: "Unauthorized: User authentication required"
+        });
+      }
+
+      // Validate required fields
+      if (!name || !shortCode || !type) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required fields: name, shortCode, and type are required"
         });
       }
 
@@ -20,12 +32,14 @@ export class UnitController {
         name,
         shortCode,
         type,
-        baseUnit,
+        baseUnit: baseUnit && baseUnit.trim() ? baseUnit : undefined,
         conversionFactor: conversionFactor || 1,
         createdBy
       });
 
+      console.log('[CREATE UNIT] Saving unit:', unit);
       await unit.save();
+      console.log('[CREATE UNIT] Unit saved successfully');
 
       res.status(201).json({
         success: true,
@@ -33,10 +47,13 @@ export class UnitController {
         data: unit
       });
     } catch (error: any) {
+      console.error('[CREATE UNIT] Error:', error);
       const status = error?.name === "ValidationError" ? 400 : 500;
       res.status(status).json({
         success: false,
-        message: "Error creating unit",
+        message: error?.name === "ValidationError" 
+          ? `Validation error: ${error.message}`
+          : "Error creating unit",
         error: error.message
       });
     }

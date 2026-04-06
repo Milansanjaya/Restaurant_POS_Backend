@@ -193,6 +193,11 @@ export const getTopProductsChart = async (
       },
       { $unwind: "$product" },
       {
+        $match: {
+          "product.isActive": true  // ✅ Filter out deleted products
+        }
+      },
+      {
         $project: {
           _id: 0,
           productId: "$product._id",

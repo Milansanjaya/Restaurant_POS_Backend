@@ -1,41 +1,47 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISupplier extends Document {
-  code: string;
   name: string;
+  code: string;
   contactPerson: string;
   phone: string;
-  email: string;
-  address: string;
+  email?: string;
+  address?: string;
   creditLimit: number;
-  paymentTerms: number; // days
-  gstNumber: string;
-  panNumber: string;
-  status: "ACTIVE" | "INACTIVE" | "BLOCKED";
+  paymentTerms: string;
+  gstNumber?: string;
+  panNumber?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   branch_id: string;
   outstandingBalance: number;
+  createdBy: mongoose.Types.ObjectId;
 }
 
 const SupplierSchema = new Schema<ISupplier>(
   {
-    code: { type: String, required: true, unique: true },
     name: { type: String, required: true },
+    code: { type: String, required: true, unique: true },
     contactPerson: { type: String, required: true },
     phone: { type: String, required: true },
-    email: { type: String, required: true },
-    address: { type: String, required: true },
-    creditLimit: { type: Number, required: true },
-    paymentTerms: { type: Number, default: 30 },
-    gstNumber: { type: String, required: true },
-    panNumber: { type: String, required: true },
-    status: { type: String, enum: ["ACTIVE", "INACTIVE", "BLOCKED"], default: "ACTIVE" },
+    email: { type: String },
+    address: { type: String },
+    creditLimit: { type: Number, default: 0 },
+    paymentTerms: { type: String, default: "Net 30" },
+    gstNumber: { type: String },
+    panNumber: { type: String },
+    status: { 
+      type: String, 
+      enum: ['ACTIVE', 'INACTIVE', 'BLOCKED'], 
+      default: 'ACTIVE' 
+    },
     branch_id: { type: String, required: true },
-    outstandingBalance: { type: Number, default: 0 }
+    outstandingBalance: { type: Number, default: 0 },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true }
   },
   { timestamps: true }
 );
 
-SupplierSchema.index({ branch_id: 1, code: 1 });
 SupplierSchema.index({ branch_id: 1, status: 1 });
+SupplierSchema.index({ code: 1 });
 
 export default mongoose.model<ISupplier>("Supplier", SupplierSchema);

@@ -58,7 +58,10 @@ export const getTopProducts = async (req: AuthRequest, res: Response) => {
 
     sales.forEach((sale: any) => {
       sale.items.forEach((item: any) => {
-        const name = item.product?.name;
+        // ✅ Only count active products
+        if (!item.product || !item.product.isActive) return;
+        
+        const name = item.product.name;
 
         if (!map[name]) map[name] = 0;
         map[name] += item.quantity;
@@ -100,12 +103,21 @@ export const getPaymentSummary = async (req: AuthRequest, res: Response) => {
 };
 export const getLowStock = async (req: AuthRequest, res: Response) => {
   try {
+    // Use dynamic lowStockThreshold per item instead of hardcoded value
     const items = await Inventory.find({
       branch_id: req.user?.branch_id,
-      stockQuantity: { $lte: 5 } // threshold
+      isActive: true,
+      $expr: { $lte: ["$stockQuantity", "$lowStockThreshold"] }
     }).populate("product");
 
-    res.json(items);
+    // ✅ Filter out items where product is null OR inactive
+    const validItems = items.filter(item => {
+      if (!item.product) return false;
+      const product = item.product as any;
+      return product.isActive === true;
+    });
+
+    res.json(validItems);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
