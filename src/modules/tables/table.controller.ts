@@ -181,7 +181,7 @@ export const updateTable = async (req: AuthRequest, res: Response) => {
       const existing = await Table.findOne({
         tableNumber,
         branch_id: req.user?.branch_id,
-        _id: { $ne: id }
+        _id: { $ne: String(id) }
       });
 
       if (existing) {

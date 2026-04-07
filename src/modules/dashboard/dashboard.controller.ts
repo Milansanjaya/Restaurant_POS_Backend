@@ -141,7 +141,7 @@ export const getRevenueChart = async (
     const current = new Date(start);
 
     while (current <= end) {
-      const key = current.toISOString().split("T")[0];
+      const key = current.toISOString().split("T")[0] || "";
       points.push({
         date: key,
         revenue: salesMap.get(key) || 0

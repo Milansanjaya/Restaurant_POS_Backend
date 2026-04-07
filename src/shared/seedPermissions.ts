@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Permission from "../modules/roles/permission.model";
 import Role from "../modules/roles/role.model";
 
@@ -190,14 +191,14 @@ export const seedRoles = async () => {
       permissions: [
         "VIEW_KITCHEN", "UPDATE_KITCHEN_STATUS",
         "VIEW_TABLES",
-      ].map(name => permissionMap.get(name)).filter(Boolean),
+      ].map(name => permissionMap.get(name)).filter((p): p is mongoose.Types.ObjectId => p !== undefined),
     },
   ];
 
   for (const roleData of roles) {
     const exists = await Role.findOne({ name: roleData.name });
     if (!exists) {
-      await Role.create(roleData);
+      await Role.create(roleData as any);
       console.log(`✅ Role created: ${roleData.name} with ${roleData.permissions.length} permissions`);
     } else {
       // Update existing role permissions

@@ -7,7 +7,7 @@ import SupplierTransaction from "./supplierTransaction.model";
 const generateSupplierCode = async (branchId: string): Promise<string> => {
   const lastSupplier = await Supplier.findOne({ branch_id: branchId })
     .sort({ createdAt: -1 });
-  const lastNumber = lastSupplier ? parseInt(lastSupplier.code.split("-")[1]) : 0;
+  const lastNumber = lastSupplier ? parseInt(lastSupplier.code.split("-")[1] || "0") : 0;
   return `SUP-${String(lastNumber + 1).padStart(6, "0")}`;
 };
 

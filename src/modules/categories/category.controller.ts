@@ -80,7 +80,7 @@ export class CategoryController {
       };
 
       // Build tree structure
-      const buildTree = (parentId: any = null) => {
+      const buildTree = (parentId: any = null): any[] => {
         return categories
           .filter(cat => {
             const p = getParentIdValue(cat);

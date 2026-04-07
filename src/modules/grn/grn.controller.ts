@@ -12,7 +12,7 @@ import Batch from "../batches/batch.model";
 const generateGRNNumber = async (branchId: string): Promise<string> => {
   const lastGRN = await GRN.findOne({ branch_id: branchId })
     .sort({ createdAt: -1 });
-  const lastNumber = lastGRN ? parseInt(lastGRN.grnNumber.split("-")[1]) : 0;
+  const lastNumber = lastGRN ? parseInt(lastGRN.grnNumber.split("-")[1] || "0") : 0;
   return `GRN-${String(lastNumber + 1).padStart(6, "0")}`;
 };
 
@@ -228,7 +228,7 @@ export const approveGRN = async (req: AuthRequest, res: Response) => {
 
     // Create batches if provided
     for (const batchData of grn.batches) {
-      const productId = (batchData as any).product_id || grn.items[0].product_id;
+      const productId = (batchData as any).product_id || grn.items[0]?.product_id;
       const qty = Number(batchData.quantity || 0);
       const cpu = Number(batchData.costPerUnit || 0);
 
