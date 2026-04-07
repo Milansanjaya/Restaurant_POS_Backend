@@ -8,19 +8,30 @@ export const createReservation = async (
   res: Response
 ) => {
   try {
-    const {
-      tableId,
-      customerName,
-      customerPhone,
-      guestCount,
-      reservationDateTime,
-      notes
-    } = req.body;
+    const body: any = req.body ?? {};
+
+    const tableId = body.tableId ?? body.table_id;
+    const customerName = body.customerName ?? body.customer_name;
+    const customerPhone = body.customerPhone ?? body.customer_phone;
+    const guestCount = body.guestCount ?? body.partySize ?? body.guest_count;
+    const notes = body.notes;
+
+    let reservationDateTime = body.reservationDateTime;
+    if (!reservationDateTime && body.reservationDate && body.reservationTime) {
+      // Accept payload split into date + time (e.g. "2026-01-21" + "19:00")
+      reservationDateTime = new Date(`${body.reservationDate}T${body.reservationTime}:00`);
+    }
 
     if (!tableId || !customerName || !customerPhone || !reservationDateTime) {
       return res.status(400).json({
         message:
           "tableId, customerName, customerPhone, and reservationDateTime are required"
+      });
+    }
+
+    if (Number.isNaN(new Date(reservationDateTime).getTime())) {
+      return res.status(400).json({
+        message: "Invalid reservationDateTime"
       });
     }
 

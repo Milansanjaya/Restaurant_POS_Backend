@@ -9,27 +9,27 @@ const router = Router();
 router.get(
   "/summary",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_DASHBOARD"),
   getDashboardSummary
 );
 
 router.get(
   "/revenue-chart",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_DASHBOARD"),
   getRevenueChart
 );
   
 router.get(
   "/top-products",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_DASHBOARD"),
   getTopProductsChart
 );
 router.get(
   "/shift-summary",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_SHIFTS"),
   getShiftSummary
 );
 

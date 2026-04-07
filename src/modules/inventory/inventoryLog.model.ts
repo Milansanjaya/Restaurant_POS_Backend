@@ -6,6 +6,7 @@ export interface IInventoryLog extends Document {
   quantityChange: number;
   type: "SALE" | "PURCHASE" | "ADJUSTMENT" | "RETURN";
   referenceId?: mongoose.Types.ObjectId;
+  batch_id?: mongoose.Types.ObjectId;  // FIFO: Track which batch
   performedBy: mongoose.Types.ObjectId;
 }
 
@@ -20,6 +21,7 @@ const InventoryLogSchema = new Schema<IInventoryLog>(
       required: true
     },
     referenceId: { type: Schema.Types.ObjectId },
+    batch_id: { type: Schema.Types.ObjectId, ref: "Batch" },  // FIFO tracking
     performedBy: { type: Schema.Types.ObjectId, ref: "User" }
   },
   { timestamps: true }

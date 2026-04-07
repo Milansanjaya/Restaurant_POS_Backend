@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { registerAdmin, login } from "./auth.controller";
-import { authenticate } from "../../middleware/auth.middleware";
+import { registerAdmin, login, getMe } from "./auth.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 
@@ -8,6 +7,7 @@ const router = Router();
 
 router.post("/register-admin", registerAdmin);
 router.post("/login", login);
+router.get("/me", authenticate, getMe);
 
 router.get(
   "/test-permission",

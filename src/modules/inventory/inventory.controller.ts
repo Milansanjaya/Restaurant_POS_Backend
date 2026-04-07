@@ -6,11 +6,20 @@ import Product from "../products/product.model";
 
 export const adjustInventory = async (req: AuthRequest, res: Response) => {
   try {
-    const { productId, quantityChange, type } = req.body;
+    const body = (req.body || {}) as any;
 
-    if (!productId || quantityChange === undefined || !type) {
+    // Accept client aliases (Postman uses product_id + adjustment)
+    const productId = body.productId ?? body.product_id ?? body.product;
+    const quantityChangeRaw =
+      body.quantityChange ?? body.adjustment ?? body.quantity_change;
+    const quantityChange = Number(quantityChangeRaw);
+
+    // Default to ADJUSTMENT if client doesn't send it
+    const type = (body.type ?? "ADJUSTMENT") as string;
+
+    if (!productId || !Number.isFinite(quantityChange)) {
       return res.status(400).json({
-        message: "productId, quantityChange, and type are required"
+        message: "productId (or product_id) and quantityChange (or adjustment) are required"
       });
     }
 
@@ -81,11 +90,17 @@ export const getBranchInventory = async (req: AuthRequest, res: Response) => {
     const inventory = await Inventory.find({
       branch_id: req.user?.branch_id,
       isActive: true
-    }).populate("product");
+    }).populate({
+      path: "product",
+      match: { isActive: true }  // Only populate active products
+    });
+
+    // Filter out inventory items where product is null (deleted) or inactive
+    const validInventory = inventory.filter(item => item.product != null);
 
     res.json({
       branch_id: req.user?.branch_id,
-      inventory
+      inventory: validInventory
     });
   } catch (error: any) {
     res.status(500).json({
@@ -127,6 +142,38 @@ export const fixInventory = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     res.status(500).json({
       message: "Error",
+      error: error.message
+    });
+  }
+};
+
+export const cleanupInventory = async (req: AuthRequest, res: Response) => {
+  try {
+    // Find all inventory items
+    const allInventory = await Inventory.find({
+      branch_id: req.user?.branch_id,
+      isActive: true
+    }).populate("product");
+
+    let deactivated = 0;
+    
+    // Deactivate inventory items where product is null (deleted) or inactive
+    for (const inv of allInventory) {
+      if (!inv.product || (inv.product as any).isActive === false) {
+        inv.isActive = false;
+        await inv.save();
+        deactivated++;
+      }
+    }
+
+    res.json({
+      message: "Inventory cleanup completed",
+      deactivated
+    });
+
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Error cleaning up inventory",
       error: error.message
     });
   }

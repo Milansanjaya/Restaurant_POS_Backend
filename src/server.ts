@@ -4,7 +4,7 @@ dotenv.config();
 import app from "./app";
 import http from "http";
 import { connectDatabase } from "./config/database";
-import { seedPermissions } from "./shared/seedPermissions";
+import { seedPermissions, seedRoles } from "./shared/seedPermissions";
 import { assignAdminPermissions } from "./shared/assignAdminPermissions";
 import { initSocket } from "./infrastructure/socket";
 
@@ -14,6 +14,7 @@ const startServer = async () => {
   try {
     await connectDatabase();
     await seedPermissions();
+    await seedRoles();
     await assignAdminPermissions();
 
      const server = http.createServer(app);

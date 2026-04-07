@@ -3,15 +3,21 @@ import {
   createCoupon,
   getCoupons,
   updateCoupon,
-  toggleCoupon
+  toggleCoupon,
+  deleteCoupon,
+  validateCoupon
 } from "./coupon.controller";
 import { authenticate } from "../../middleware/auth.middleware";
+import { authorize } from "../../middleware/permission.middleware";
 
 const router = Router();
 
-router.post("/", authenticate, createCoupon);
-router.get("/", authenticate, getCoupons);
-router.put("/:id", authenticate, updateCoupon);
-router.patch("/:id/toggle", authenticate, toggleCoupon);
+router.post("/", authenticate, authorize("CREATE_COUPON"), createCoupon);
+router.get("/", authenticate, authorize("VIEW_COUPONS"), getCoupons);
+router.post("/validate", authenticate, validateCoupon);  // No special permission needed for validating
+router.put("/:id", authenticate, authorize("EDIT_COUPON"), updateCoupon);
+router.patch("/:id", authenticate, authorize("EDIT_COUPON"), updateCoupon); // Support PATCH too
+router.patch("/:id/toggle", authenticate, authorize("EDIT_COUPON"), toggleCoupon);
+router.delete("/:id", authenticate, authorize("EDIT_COUPON"), deleteCoupon);
 
 export default router;

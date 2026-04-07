@@ -10,6 +10,64 @@ import { getIO } from "../../infrastructure/socket";
 import Table from "../tables/table.model";
 import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
+import FIFOBatchService from "./fifoBatchService";  // FIFO service
+
+// ================= GET ALL SALES =================
+export const getSales = async (req: AuthRequest, res: Response) => {
+  try {
+    const branchId = req.user?.branch_id;
+
+    if (!branchId) {
+      return res.status(401).json({
+        message: "Unauthorized"
+      });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const limit = Math.min(
+      200,
+      Math.max(1, parseInt(String(req.query.limit ?? "20"), 10) || 20)
+    );
+    const skip = (page - 1) * limit;
+
+    const query: any = { branch_id: branchId };
+
+    if (req.query.status) {
+      query.status = String(req.query.status);
+    }
+
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+
+    if ((from && !isNaN(from.getTime())) || (to && !isNaN(to.getTime()))) {
+      query.createdAt = {};
+      if (from && !isNaN(from.getTime())) query.createdAt.$gte = from;
+      if (to && !isNaN(to.getTime())) query.createdAt.$lte = to;
+    }
+
+    const [total, sales] = await Promise.all([
+      Sale.countDocuments(query),
+      Sale.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("createdBy", "name email")
+        .populate("items.product", "name price")
+    ]);
+
+    res.json({
+      page,
+      limit,
+      total,
+      sales
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
 
 // ================= CREATE / ADD TO SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
@@ -32,7 +90,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       reservationId,
       discountType,
       discountValue,
-      couponCode
+      couponCode,
+      customerId  // Optional customer for loyalty tracking
     } = req.body;
 
     let subtotal = 0;
@@ -194,6 +253,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       sale = await Sale.create({
         invoiceNumber,
         branch_id: req.user?.branch_id,
+        customer_id: customerId || undefined,  // Optional customer for loyalty
         items: processedItems.map((item) => ({
           product: item.product,
           quantity: item.quantity,
@@ -302,28 +362,57 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       await sale.save();
     }
 
-    // ✅ Deduct inventory + log
-    for (const item of processedItems) {
-      const inventory = await Inventory.findOne({
-        product: item.product,
-        branch_id: req.user?.branch_id,
-        isActive: true
-      });
+    // ✅ Deduct inventory using FIFO batch system (for products with trackStock enabled)
+    for (let i = 0; i < processedItems.length; i++) {
+      const item = processedItems[i];
+      const product = await Product.findById(item.product);
+      
+      // Only deduct stock for products that track inventory
+      if (product?.trackStock) {
+        try {
+          // Try FIFO batch deduction first
+          const batchDeductions = await FIFOBatchService.deductFromBatchesFIFO(
+            item.product,
+            item.quantity,
+            req.user?.branch_id || '',
+            sale._id,
+            req.user?._id
+          );
+          
+          // Update sale item with batch info (use first batch for simplicity)
+          if (batchDeductions.length > 0) {
+            sale.items[i].batch_id = batchDeductions[0].batch_id;
+            sale.items[i].batchNumber = batchDeductions[0].batchNumber;
+          }
+        } catch (batchError) {
+          // Fallback: If no batches available, use traditional inventory deduction
+          console.log(`FIFO fallback for product ${item.product}: ${batchError}`);
+          
+          const inventory = await Inventory.findOne({
+            product: item.product,
+            branch_id: req.user?.branch_id,
+            isActive: true
+          });
 
-      if (inventory) {
-        inventory.stockQuantity -= item.quantity;
-        await inventory.save();
+          if (inventory) {
+            inventory.stockQuantity -= item.quantity;
+            await inventory.save();
 
-        await InventoryLog.create({
-          product: item.product,
-          branch_id: req.user?.branch_id,
-          quantityChange: -item.quantity,
-          type: "SALE",
-          referenceId: sale._id,
-          performedBy: req.user?._id
-        });
+            await InventoryLog.create({
+              product: item.product,
+              branch_id: req.user?.branch_id,
+              quantityChange: -item.quantity,
+              type: "SALE",
+              referenceId: sale._id,
+              performedBy: req.user?._id
+            });
+          }
+        }
       }
     }
+    
+    // Save sale with batch info
+    await sale.save();
 
     // ✅ Kitchen order for only newly added items
     const kitchenOrder = await KitchenOrder.create({
@@ -361,7 +450,9 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 export const closeTableSale = async (req: AuthRequest, res: Response) => {
   try {
     const { tableId } = req.params;
-    const { paymentMethod } = req.body;
+    const body = (req.body || {}) as any;
+    const paymentMethod =
+      body.paymentMethod || (req.query.paymentMethod as string | undefined);
 
     if (!paymentMethod) {
       return res.status(400).json({

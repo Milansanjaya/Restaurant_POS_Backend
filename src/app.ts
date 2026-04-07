@@ -13,6 +13,18 @@ import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import tableRoutes from "./modules/tables/table.routes";
 import reservationRoutes from "./modules/reservations/reservation.routes";
 import couponRoutes from "./modules/coupons/coupon.routes";
+import supplierRoutes from "./modules/suppliers/supplier.routes";
+import purchaseOrderRoutes from "./modules/purchase-orders/purchaseOrder.routes";
+import grnRoutes from "./modules/grn/grn.routes";
+import batchRoutes from "./modules/batches/batch.routes";
+import customerRoutes from "./modules/customers/customer.routes";
+import loyaltyRoutes from "./modules/loyalty/loyalty.routes";
+import categoryRoutes from "./modules/categories/category.routes";
+import unitRoutes from "./modules/units/unit.routes";
+import configRoutes from "./modules/config/config.routes";
+import returnRoutes from "./modules/returns/return.routes";
+import roleRoutes from "./modules/roles/role.routes";
+import userRoutes from "./modules/users/user.routes";
 
 const app: Application = express();
 
@@ -40,7 +52,18 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/tables", tableRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/coupons", couponRoutes);
-
+app.use("/api/suppliers", supplierRoutes);
+app.use("/api/purchase-orders", purchaseOrderRoutes);
+app.use("/api/grn", grnRoutes);
+app.use("/api/batches", batchRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/loyalty", loyaltyRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/units", unitRoutes);
+app.use("/api/config", configRoutes);
+app.use("/api/returns", returnRoutes);
+app.use("/api/roles", roleRoutes);
+app.use("/api/users", userRoutes);
 
 // Health check route
 app.get("/health", (req, res) => {

@@ -1,9 +1,24 @@
 import { Router } from "express";
-import { createSale, voidSale, closeTableSale, paySale,getInvoice,refundSale } from "./sale.controller";
+import {
+  createSale,
+  voidSale,
+  closeTableSale,
+  paySale,
+  getInvoice,
+  refundSale,
+  getSales
+} from "./sale.controller";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 
 const router = Router();
+
+router.get(
+  "/",
+  authenticate,
+  authorize("VIEW_SALES"),
+  getSales
+);
 
 router.post(
   "/",
@@ -20,6 +35,7 @@ router.post(
 router.post(
   "/:tableId/close",
   authenticate,
+  authorize("CREATE_SALE"),
   closeTableSale
 );
 router.post(
@@ -32,7 +48,7 @@ router.post(
 router.get(
   "/:saleId/invoice",
   authenticate,
-  authorize("VIEW_REPORTS"),
+  authorize("VIEW_SALES"),
   getInvoice
 );
 
