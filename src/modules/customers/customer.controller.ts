@@ -31,7 +31,7 @@ export class CustomerController {
       let customerNumber = 1;
       if (lastCustomer && lastCustomer.customerCode) {
         const match = lastCustomer.customerCode.match(/CUST-(\d+)/);
-        if (match) {
+        if (match && match[1]) {
           customerNumber = parseInt(match[1], 10) + 1;
         }
       }

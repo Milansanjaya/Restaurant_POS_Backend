@@ -9,7 +9,7 @@ import SupplierTransaction from "../suppliers/supplierTransaction.model";
 const generatePONumber = async (branchId: string): Promise<string> => {
   const lastPO = await PurchaseOrder.findOne({ branch_id: branchId })
     .sort({ createdAt: -1 });
-  const lastNumber = lastPO ? parseInt(lastPO.poNumber.split("-")[1]) : 0;
+  const lastNumber = lastPO ? parseInt(lastPO.poNumber.split("-")[1] || "0") : 0;
   return `PO-${String(lastNumber + 1).padStart(6, "0")}`;
 };
 

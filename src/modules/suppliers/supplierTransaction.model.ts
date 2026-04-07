@@ -2,11 +2,14 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISupplierTransaction extends Document {
   supplier_id: mongoose.Types.ObjectId;
-  type: 'PURCHASE' | 'PAYMENT' | 'RETURN' | 'ADJUSTMENT';
+  type?: 'PURCHASE' | 'PAYMENT' | 'RETURN' | 'ADJUSTMENT';
+  transactionType?: 'PURCHASE' | 'PAYMENT' | 'RETURN' | 'ADJUSTMENT';
   amount: number;
-  balance: number;
+  balance?: number;
+  description?: string;
   reference_id?: mongoose.Types.ObjectId;
   referenceType?: 'PurchaseOrder' | 'Payment' | 'Return';
+  referenceDocument?: string;
   date: Date;
   notes?: string;
   branch_id: string;
@@ -22,16 +25,21 @@ const SupplierTransactionSchema = new Schema<ISupplierTransaction>(
     },
     type: { 
       type: String, 
-      enum: ['PURCHASE', 'PAYMENT', 'RETURN', 'ADJUSTMENT'], 
-      required: true 
+      enum: ['PURCHASE', 'PAYMENT', 'RETURN', 'ADJUSTMENT']
+    },
+    transactionType: { 
+      type: String, 
+      enum: ['PURCHASE', 'PAYMENT', 'RETURN', 'ADJUSTMENT']
     },
     amount: { type: Number, required: true },
-    balance: { type: Number, required: true },
+    balance: { type: Number },
+    description: { type: String },
     reference_id: { type: Schema.Types.ObjectId },
     referenceType: { 
       type: String, 
       enum: ['PurchaseOrder', 'Payment', 'Return'] 
     },
+    referenceDocument: { type: String },
     date: { type: Date, default: Date.now },
     notes: { type: String },
     branch_id: { type: String, required: true },

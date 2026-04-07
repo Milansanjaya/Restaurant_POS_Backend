@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import Batch from "./batch.model";
@@ -95,7 +95,7 @@ export class BatchController {
   }
 
   // Get all batches
-  async getAllBatches(req: Request, res: Response) {
+  async getAllBatches(req: AuthRequest, res: Response) {
     try {
       const branch_id = req.body.branch_id;
       const { status, alertStatus, product_id, page = 1, limit = 20 } = req.query;
@@ -136,7 +136,7 @@ export class BatchController {
   }
 
   // Get near-expiry batches (30 days)
-  async getNearExpiryBatches(req: Request, res: Response) {
+  async getNearExpiryBatches(req: AuthRequest, res: Response) {
     try {
       const branch_id = req.body.branch_id;
       const { days = 30 } = req.query;
@@ -165,7 +165,7 @@ export class BatchController {
   }
 
   // Get expired batches
-  async getExpiredBatches(req: Request, res: Response) {
+  async getExpiredBatches(req: AuthRequest, res: Response) {
     try {
       const branch_id = req.body.branch_id;
 
@@ -195,7 +195,7 @@ export class BatchController {
   }
 
   // Block/unblock batch
-  async toggleBlockBatch(req: Request, res: Response) {
+  async toggleBlockBatch(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const { block, reason } = req.body;
@@ -227,7 +227,7 @@ export class BatchController {
   }
 
   // Get batch by ID
-  async getBatchById(req: Request, res: Response) {
+  async getBatchById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const branch_id = req.body.branch_id;
@@ -258,7 +258,7 @@ export class BatchController {
   }
 
   // Expiry dashboard
-  async getExpiryDashboard(req: Request, res: Response) {
+  async getExpiryDashboard(req: AuthRequest, res: Response) {
     try {
       const branch_id = req.body.branch_id;
 
@@ -308,7 +308,7 @@ export class BatchController {
   }
 
   // Update batch quantity (for stock deduction)
-  async updateBatchQuantity(req: Request, res: Response) {
+  async updateBatchQuantity(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
       const { quantity } = req.body;

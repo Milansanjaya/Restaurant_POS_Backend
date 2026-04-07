@@ -10,11 +10,8 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
 
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
+    "types": ["node"],
+    // For nodejs - @types/node should be installed
 
     // Other Outputs
     "sourceMap": true,
@@ -23,7 +20,7 @@
 
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    // "exactOptionalPropertyTypes": true,  // Disabled: conflicts with Mongoose query patterns
 
     // Style Options
     // "noImplicitReturns": true,
@@ -36,10 +33,11 @@
     // Recommended Options
     
     "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
+    // "verbatimModuleSyntax": true,  // Disabled: conflicts with module: "commonjs"
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
   
-  }
+  },
+  "exclude": ["node_modules", "dist", "seed-script.ts"]
 }

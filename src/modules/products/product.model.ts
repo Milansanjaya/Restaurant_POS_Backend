@@ -12,6 +12,7 @@ export interface IProduct extends Document {
   isActive: boolean;
   isAvailable: boolean;
   trackStock: boolean;
+  lowStockThreshold?: number;
   preparationTime?: number;
   createdBy: mongoose.Types.ObjectId;
 }

@@ -380,7 +380,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
           );
           
           // Update sale item with batch info (use first batch for simplicity)
-          if (batchDeductions.length > 0) {
+          if (batchDeductions.length > 0 && batchDeductions[0]) {
             sale.items[i].batch_id = batchDeductions[0].batch_id;
             sale.items[i].batchNumber = batchDeductions[0].batchNumber;
           }
@@ -784,6 +784,9 @@ export const refundSale = async (req: AuthRequest, res: Response) => {
     }
 
     // log refund
+    if (!sale.refunds) {
+      sale.refunds = [];
+    }
     sale.refunds.push({
       amount: refundAmount,
       reason,

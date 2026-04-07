@@ -56,6 +56,10 @@ export interface ISale extends Document {
   voidedBy?: mongoose.Types.ObjectId;
   voidedAt?: Date;
   voidReason?: string;
+
+  // Timestamps
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const SaleSchema = new Schema<ISale>(

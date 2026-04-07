@@ -110,7 +110,7 @@ export class ReturnController {
       });
       let returnNumber = 1;
       if (lastReturn && lastReturn.returnNumber) {
-        const lastNumber = parseInt(lastReturn.returnNumber.split("-")[1]);
+        const lastNumber = parseInt(lastReturn.returnNumber.split("-")[1] || "0");
         returnNumber = lastNumber + 1;
       }
       const returnNumberStr = `RET-${String(returnNumber).padStart(6, "0")}`;

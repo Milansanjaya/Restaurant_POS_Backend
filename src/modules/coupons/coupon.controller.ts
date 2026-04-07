@@ -57,7 +57,7 @@ export const createCoupon = async (req: Request, res: Response) => {
       });
     }
 
-    if (value <= 0) {
+    if (value === undefined || value <= 0) {
       return res.status(400).json({
         message: "value must be a positive number"
       });
