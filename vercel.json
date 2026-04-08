@@ -1,9 +1,4 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "dist/server.js": {
-      "runtime": "nodejs20.x"
-    }
-  }
+  "outputDirectory": "dist"
 }
