@@ -1,14 +1,11 @@
-import dotenv from "dotenv";
-dotenv.config();
-
-import app from "../src/app";
-import { connectDatabase } from "../src/config/database";
-import { seedPermissions, seedRoles } from "../src/shared/seedPermissions";
-import { assignAdminPermissions } from "../src/shared/assignAdminPermissions";
+const app = require("../dist/app.js").default;
+const { connectDatabase } = require("../dist/config/database.js");
+const { seedPermissions, seedRoles } = require("../dist/shared/seedPermissions.js");
+const { assignAdminPermissions } = require("../dist/shared/assignAdminPermissions.js");
 
 let isConnected = false;
 
-export default async (req: any, res: any) => {
+module.exports = async (req, res) => {
   if (!isConnected) {
     try {
       await connectDatabase();
@@ -21,6 +18,5 @@ export default async (req: any, res: any) => {
       return res.status(500).json({ error: "Database connection failed" });
     }
   }
-
   return app(req, res);
 };
