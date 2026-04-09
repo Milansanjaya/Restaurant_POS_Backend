@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createPurchaseOrder,
+  updatePurchaseOrder,
   getPurchaseOrders,
   getPurchaseOrderById,
   approvePurchaseOrder,
@@ -30,6 +31,13 @@ router.get(
   authenticate,
   authorize("VIEW_PURCHASE_ORDERS"),
   getPurchaseOrderById
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorize("CREATE_PURCHASE_ORDER"),
+  updatePurchaseOrder
 );
 
 router.put(
