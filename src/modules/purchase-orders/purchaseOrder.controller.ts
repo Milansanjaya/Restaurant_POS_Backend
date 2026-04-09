@@ -240,7 +240,7 @@ export const getPurchaseOrderById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Purchase Order not found" });
     }
 
-    res.status(200).json(purchaseOrder);
+    res.status(200).json({ purchaseOrder });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }

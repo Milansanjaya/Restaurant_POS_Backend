@@ -122,3 +122,120 @@ export const getLowStock = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Profit report grouped by day (uses Sale.items[].cost when available)
+export const getProfitReport = async (req: AuthRequest, res: Response) => {
+  try {
+    const branchId = req.user?.branch_id;
+    if (!branchId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const fromStr = req.query.from ? String(req.query.from) : undefined;
+    const toStr = req.query.to ? String(req.query.to) : undefined;
+    const orderType = req.query.orderType ? String(req.query.orderType) : undefined;
+
+    const baseFrom = fromStr ? new Date(fromStr) : new Date();
+    const baseTo = toStr ? new Date(toStr) : new Date(baseFrom);
+
+    if (isNaN(baseFrom.getTime()) || isNaN(baseTo.getTime())) {
+      return res.status(400).json({ message: "Invalid from/to date. Use YYYY-MM-DD" });
+    }
+
+    const start = new Date(baseFrom);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(baseTo);
+    end.setHours(23, 59, 59, 999);
+
+    const query: any = {
+      branch_id: branchId,
+      status: "COMPLETED",
+      createdAt: { $gte: start, $lte: end }
+    };
+
+    if (orderType) query.orderType = orderType;
+
+    const sales = await Sale.find(query)
+      .select("createdAt subtotal discount items")
+      .populate("items.product", "cost")
+      .lean();
+
+    type Day = {
+      date: string;
+      totalOrders: number;
+      grossSales: number;
+      discount: number;
+      netSales: number;
+      totalCost: number;
+      profit: number;
+    };
+
+    const daysMap = new Map<string, Day>();
+
+    for (const sale of sales as any[]) {
+      const createdAt = sale.createdAt ? new Date(sale.createdAt) : new Date();
+      const dateKey = createdAt.toISOString().slice(0, 10);
+
+      const grossSales = Number(sale.subtotal || 0);
+      const discountRaw = Number(sale.discount || 0);
+      const discountOnSubtotal = Math.min(Math.max(discountRaw, 0), Math.max(grossSales, 0));
+      const netSales = grossSales - discountOnSubtotal;
+
+      let totalCost = 0;
+      for (const item of sale.items || []) {
+        const qty = Number(item.quantity || 0);
+        const capturedCost = item.cost;
+        const productCost = item.product && typeof item.product === "object" ? Number((item.product as any).cost || 0) : 0;
+        const cost = Number.isFinite(Number(capturedCost)) ? Number(capturedCost) : productCost;
+        totalCost += Math.max(0, cost) * Math.max(0, qty);
+      }
+
+      const profit = netSales - totalCost;
+
+      const existing = daysMap.get(dateKey) || {
+        date: dateKey,
+        totalOrders: 0,
+        grossSales: 0,
+        discount: 0,
+        netSales: 0,
+        totalCost: 0,
+        profit: 0
+      };
+
+      existing.totalOrders += 1;
+      existing.grossSales += grossSales;
+      existing.discount += discountOnSubtotal;
+      existing.netSales += netSales;
+      existing.totalCost += totalCost;
+      existing.profit += profit;
+
+      daysMap.set(dateKey, existing);
+    }
+
+    const days = Array.from(daysMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    const totals = days.reduce(
+      (acc, d) => {
+        acc.totalOrders += d.totalOrders;
+        acc.grossSales += d.grossSales;
+        acc.discount += d.discount;
+        acc.netSales += d.netSales;
+        acc.totalCost += d.totalCost;
+        acc.profit += d.profit;
+        return acc;
+      },
+      { totalOrders: 0, grossSales: 0, discount: 0, netSales: 0, totalCost: 0, profit: 0 }
+    );
+
+    return res.json({
+      from: start.toISOString().slice(0, 10),
+      to: end.toISOString().slice(0, 10),
+      orderType: orderType || null,
+      totals,
+      days
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+};

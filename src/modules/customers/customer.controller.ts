@@ -2,6 +2,7 @@ import { Response } from "express";
 import mongoose from "mongoose";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import Customer from "./customer.model";
+import Sale from "../sales/sale.model";
 
 export class CustomerController {
   // Create customer
@@ -303,13 +304,27 @@ export class CustomerController {
     }
   }
 
-  // Get customer purchase history
+  // Get customer purchase history (sales)
   async getCustomerHistory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { page = 1, limit = 10 } = req.query;
+      const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "10"), 10) || 10));
+      const skip = (page - 1) * limit;
 
-      const customer = await Customer.findById(id);
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid customer id"
+        });
+      }
+
+      const branchId = req.user?.branch_id;
+      if (!branchId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+
+      const customer = await Customer.findOne({ _id: id, branch_id: branchId });
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -317,14 +332,30 @@ export class CustomerController {
         });
       }
 
-      // This would need to query the Sales model
-      // For now, return customer stats
-      res.status(200).json({
+      const query: any = {
+        branch_id: branchId,
+        customer_id: id,
+        status: "COMPLETED"
+      };
+
+      const [total, sales] = await Promise.all([
+        Sale.countDocuments(query),
+        Sale.find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .select("invoiceNumber orderType table subtotal taxTotal discount grandTotal status createdAt")
+          .populate("table", "tableNumber section")
+      ]);
+
+      return res.status(200).json({
         success: true,
         data: {
           customer: {
+            _id: customer._id,
             name: customer.name,
             phone: customer.phone,
+            email: customer.email,
             tier: customer.tier
           },
           stats: {
@@ -332,11 +363,18 @@ export class CustomerController {
             totalSpent: customer.totalSpent,
             averageOrderValue: customer.averageOrderValue,
             lastVisit: customer.lastVisit
+          },
+          sales,
+          pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit)
           }
         }
       });
     } catch (error: any) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: "Error fetching customer history",
         error: error.message

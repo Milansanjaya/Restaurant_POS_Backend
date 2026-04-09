@@ -4,11 +4,14 @@ export interface ISale extends Document {
   invoiceNumber: string;
   branch_id: string;
   customer_id?: mongoose.Types.ObjectId;  // Optional customer for loyalty tracking
+  orderType?: "DINE_IN" | "TAKEAWAY" | "DELIVERY";
+  table?: mongoose.Types.ObjectId;
 
   items: {
     product: mongoose.Types.ObjectId;
     quantity: number;
     price: number;
+    cost?: number; // product cost captured at sale time (for profit reporting)
     taxRate: number;
     subtotal: number;
     batch_id?: mongoose.Types.ObjectId;  // FIFO: Track which batch was used
@@ -70,6 +73,17 @@ const SaleSchema = new Schema<ISale>(
 
     customer_id: { type: Schema.Types.ObjectId, ref: "Customer" },  // Optional customer for loyalty
 
+    orderType: {
+      type: String,
+      enum: ["DINE_IN", "TAKEAWAY", "DELIVERY"],
+      default: "TAKEAWAY"
+    },
+
+    table: {
+      type: Schema.Types.ObjectId,
+      ref: "Table"
+    },
+
     items: [
       {
         product: {
@@ -79,6 +93,7 @@ const SaleSchema = new Schema<ISale>(
         },
         quantity: { type: Number, required: true },
         price: { type: Number, required: true },
+        cost: { type: Number, default: 0 }, // captured product.cost at sale time
         taxRate: { type: Number, required: true },
         subtotal: { type: Number, required: true },
         batch_id: { type: Schema.Types.ObjectId, ref: "Batch" },  // FIFO tracking

@@ -9,7 +9,7 @@ export const authorize = (requiredPermission: string) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const permissions = user.role.permissions.map((p: any) => p.name);
+    const permissions = (user.role?.permissions || []).map((p: any) => p.name);
 
     if (!permissions.includes(requiredPermission)) {
       return res.status(403).json({ message: "Forbidden" });

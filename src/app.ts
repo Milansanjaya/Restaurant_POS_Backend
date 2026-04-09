@@ -73,4 +73,17 @@ app.get("/health", (req, res) => {
   });
 });
 
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: "Not Found" });
+});
+
+// Global error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("UNHANDLED ERROR:", err);
+  res.status(err?.status || 500).json({
+    message: err?.message || "Internal server error"
+  });
+});
+
 export default app;

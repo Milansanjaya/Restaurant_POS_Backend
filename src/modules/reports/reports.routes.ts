@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
-import { getDailySales,getTopProducts,getPaymentSummary,getLowStock } from "./reports.controller";
+import { getDailySales, getTopProducts, getPaymentSummary, getLowStock, getProfitReport } from "./reports.controller";
 
 const router = Router();
 
@@ -24,5 +24,13 @@ router.get(
   authorize("VIEW_REPORTS"),
   getPaymentSummary
 );
+
+router.get(
+  "/profit",
+  authenticate,
+  authorize("VIEW_REPORTS"),
+  getProfitReport
+);
+
 router.get("/low-stock", authenticate, getLowStock);
 export default router;

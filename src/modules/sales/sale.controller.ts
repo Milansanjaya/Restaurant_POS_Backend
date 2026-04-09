@@ -36,6 +36,10 @@ export const getSales = async (req: AuthRequest, res: Response) => {
       query.status = String(req.query.status);
     }
 
+    if (req.query.orderType) {
+      query.orderType = String(req.query.orderType);
+    }
+
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
 
@@ -52,7 +56,9 @@ export const getSales = async (req: AuthRequest, res: Response) => {
         .skip(skip)
         .limit(limit)
         .populate("createdBy", "name email")
-        .populate("items.product", "name price")
+        .populate("items.product", "name price cost")
+        .populate("customer_id", "name phone email")
+        .populate("table", "tableNumber section")
     ]);
 
     res.json({
@@ -87,12 +93,33 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       items,
       paymentMethod,
       tableId,
+      orderType,
       reservationId,
       discountType,
       discountValue,
       couponCode,
       customerId  // Optional customer for loyalty tracking
     } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "items are required"
+      });
+    }
+
+    const isImmediatePayment = Boolean(paymentMethod);
+    const resolvedOrderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY" =
+      orderType === "DINE_IN" || orderType === "TAKEAWAY" || orderType === "DELIVERY"
+        ? orderType
+        : tableId
+          ? "DINE_IN"
+          : "TAKEAWAY";
+
+    if (!tableId && !paymentMethod) {
+      return res.status(400).json({
+        message: "paymentMethod is required"
+      });
+    }
 
     let subtotal = 0;
     let taxTotal = 0;
@@ -116,7 +143,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      if (table.currentSale) {
+      if (table.currentSale && !isImmediatePayment) {
         sale = await Sale.findOne({
           _id: table.currentSale,
           branch_id: req.user?.branch_id
@@ -127,6 +154,12 @@ export const createSale = async (req: AuthRequest, res: Response) => {
             message: "Invalid active sale for table"
           });
         }
+      }
+
+      if (table.currentSale && isImmediatePayment) {
+        return res.status(400).json({
+          message: "Table already has an active sale. Please close it before completing a new one."
+        });
       }
     }
 
@@ -198,6 +231,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         product: product._id,
         quantity: item.quantity,
         price: product.price,
+        cost: product.cost ?? 0,
         taxRate: product.taxRate,
         subtotal: itemSubtotal,
         productName: product.name
@@ -250,14 +284,25 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       const invoiceNumber = `INV-${Date.now()}`;
       const initialGrandTotal = subtotal + taxTotal - finalDiscount;
 
+      const isOpenTableSale = Boolean(table) && !isImmediatePayment;
+
+      if (!isOpenTableSale && !paymentMethod) {
+        return res.status(400).json({
+          message: "paymentMethod is required"
+        });
+      }
+
       sale = await Sale.create({
         invoiceNumber,
         branch_id: req.user?.branch_id,
         customer_id: customerId || undefined,  // Optional customer for loyalty
+        orderType: resolvedOrderType,
+        table: table ? table._id : undefined,
         items: processedItems.map((item) => ({
           product: item.product,
           quantity: item.quantity,
           price: item.price,
+          cost: item.cost ?? 0,
           taxRate: item.taxRate,
           subtotal: item.subtotal
         })),
@@ -272,8 +317,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
         reservation: reservation ? reservation._id : undefined,
 
-        paymentMethod: table ? undefined : paymentMethod,
-        payments: table
+        paymentMethod: isOpenTableSale ? undefined : paymentMethod,
+        payments: isOpenTableSale
           ? []
           : [
               {
@@ -282,18 +327,18 @@ export const createSale = async (req: AuthRequest, res: Response) => {
                 receivedBy: req.user?._id
               }
             ],
-        paidAmount: table ? 0 : initialGrandTotal,
-        balanceAmount: table ? initialGrandTotal : 0,
-        status: table ? "OPEN" : "COMPLETED"
+        paidAmount: isOpenTableSale ? 0 : initialGrandTotal,
+        balanceAmount: isOpenTableSale ? initialGrandTotal : 0,
+        status: isOpenTableSale ? "OPEN" : "COMPLETED"
       });
 
-      if (table) {
+      if (table && isOpenTableSale) {
         table.status = "OCCUPIED";
         table.currentSale = sale._id;
         await table.save();
       }
 
-      if (!table && reservation && sale.status === "COMPLETED") {
+      if (reservation && sale.status === "COMPLETED") {
         reservation.status = "COMPLETED";
         await reservation.save();
       }
@@ -304,6 +349,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
           product: item.product,
           quantity: item.quantity,
           price: item.price,
+          cost: item.cost ?? 0,
           taxRate: item.taxRate,
           subtotal: item.subtotal
         }))
@@ -819,7 +865,9 @@ export const getInvoice = async (req: AuthRequest, res: Response) => {
     })
       .populate("items.product")
       .populate("createdBy", "name email")
-      .populate("reservation");
+      .populate("reservation")
+      .populate("customer_id", "name phone email")
+      .populate("table", "tableNumber section");
 
     if (!sale) {
       return res.status(404).json({
@@ -827,10 +875,7 @@ export const getInvoice = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const table = await Table.findOne({
-      currentSale: sale._id,
-      branch_id: req.user?.branch_id
-    });
+    const table: any = (sale as any).table;
 
     const invoice = {
       invoiceNumber: sale.invoiceNumber,

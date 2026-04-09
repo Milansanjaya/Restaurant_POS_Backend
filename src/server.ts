@@ -10,6 +10,11 @@ import { initSocket } from "./infrastructure/socket";
 
 const PORT = process.env.PORT || 5000;
 
+if (!process.env.JWT_SECRET) {
+  console.error("❌ JWT_SECRET not defined in environment variables");
+  process.exit(1);
+}
+
 const startServer = async () => {
   try {
     await connectDatabase();
@@ -17,11 +22,10 @@ const startServer = async () => {
     await seedRoles();
     await assignAdminPermissions();
 
-     const server = http.createServer(app);
-
+    const server = http.createServer(app);
     initSocket(server);
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
 

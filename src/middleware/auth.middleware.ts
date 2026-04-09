@@ -28,22 +28,27 @@ export const authenticate = async (
       return res.status(401).json({ message: "Token not found" });
     }
 
-    console.log("TOKEN RECEIVED:", token);
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: "JWT_SECRET not configured" });
+    }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
 
-    console.log("TOKEN DECODED:", decoded);
+    if (!decoded?.userId) {
+      return res.status(401).json({ message: "Invalid token" });
+    }
 
-const user = await User.findById(decoded.userId).populate({
-  path: "role",
-  populate: {
-    path: "permissions",
-    model: "Permission"
-  }
-});
+    const user = await User.findById(decoded.userId).populate({
+      path: "role",
+      populate: {
+        path: "permissions",
+        model: "Permission"
+      }
+    });
+
+    if (!user || user.isActive === false) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     req.user = user;
 

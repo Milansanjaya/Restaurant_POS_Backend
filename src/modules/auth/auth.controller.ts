@@ -9,6 +9,12 @@ export const registerAdmin = async (req: Request, res: Response) => {
   try {
     const { name, email, password, branch_id } = req.body;
 
+    if (!name || !email || !password || !branch_id) {
+      return res.status(400).json({
+        message: "name, email, password and branch_id are required"
+      });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
@@ -29,18 +35,33 @@ export const registerAdmin = async (req: Request, res: Response) => {
       branch_id
     });
 
+    const safeUser: any = user.toObject();
+    delete safeUser.password;
+
     res.status(201).json({
       message: "Admin registered successfully",
-      user
+      user: safeUser
     });
-  } catch (error) {
-    res.status(500).json({ error });
+  } catch (error: any) {
+    console.error("REGISTER ADMIN ERROR:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error?.message
+    });
   }
 };
 
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "email and password are required" });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: "JWT_SECRET not configured" });
+    }
 
     const user = await User.findOne({ email }).populate({
       path: "role",
@@ -49,8 +70,13 @@ export const login = async (req: Request, res: Response) => {
         model: "Permission"
       }
     });
+
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.isActive === false) {
+      return res.status(403).json({ message: "User is inactive" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -58,17 +84,18 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    const role = user.role as any;
+
     const token = jwt.sign(
       {
-        userId: user._id,
-        role: user.role
+        userId: user._id.toString(),
+        roleId: role?._id?.toString(),
+        branch_id: user.branch_id
       },
-      process.env.JWT_SECRET as string,
+      process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // Return user info with permissions
-    const role = user.role as any;
     const permissions = role?.permissions?.map((p: any) => p.name) || [];
 
     res.json({
