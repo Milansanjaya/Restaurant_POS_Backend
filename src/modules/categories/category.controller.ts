@@ -67,8 +67,11 @@ export class CategoryController {
       const { isActive } = req.query;
 
       const query: any = { branch_id };
+      // Default: only return active categories unless explicitly requested
       if (isActive !== undefined) {
-        query.isActive = isActive === 'true';
+        query.isActive = isActive === "true";
+      } else {
+        query.isActive = true;
       }
 
       const categories = await Category.find(query)
@@ -182,12 +185,16 @@ export class CategoryController {
       const { id } = req.params;
       const branch_id = req.body.branch_id;
 
-      // Check if has children
-      const hasChildren = await Category.countDocuments({ parentId: id, branch_id });
-      if (hasChildren > 0) {
+      // Check if has active children
+      const activeChildrenCount = await Category.countDocuments({
+        parentId: id,
+        branch_id,
+        isActive: true
+      });
+      if (activeChildrenCount > 0) {
         return res.status(400).json({
           success: false,
-          message: "Cannot delete category with subcategories"
+          message: "Cannot delete category with active subcategories"
         });
       }
 
