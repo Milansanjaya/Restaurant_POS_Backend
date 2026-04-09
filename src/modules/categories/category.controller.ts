@@ -63,7 +63,7 @@ export class CategoryController {
   // Get all categories (tree structure)
   async getAllCategories(req: AuthRequest, res: Response) {
     try {
-      const branch_id = req.body.branch_id;
+      const branch_id = req.user?.branch_id ?? req.body.branch_id;
       const { isActive } = req.query;
 
       const query: any = { branch_id };
@@ -112,7 +112,7 @@ export class CategoryController {
   async getCategoryById(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const branch_id = req.body.branch_id;
+      const branch_id = req.user?.branch_id ?? req.body.branch_id;
 
       const category = await Category.findOne({ _id: id, branch_id })
         .populate('parentId', 'name');
@@ -142,7 +142,7 @@ export class CategoryController {
   async updateCategory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const branch_id = req.body.branch_id;
+      const branch_id = req.user?.branch_id ?? req.body.branch_id;
       const updateData = req.body;
 
       delete updateData.branch_id;
@@ -180,7 +180,7 @@ export class CategoryController {
   async deleteCategory(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const branch_id = req.body.branch_id;
+      const branch_id = req.user?.branch_id ?? req.body.branch_id;
 
       // Check if has children
       const hasChildren = await Category.countDocuments({ parentId: id, branch_id });
