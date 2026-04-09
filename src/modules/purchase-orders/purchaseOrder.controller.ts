@@ -105,6 +105,99 @@ export const createPurchaseOrder = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const updatePurchaseOrder = async (req: AuthRequest, res: Response) => {
+  try {
+    const purchaseOrder = await PurchaseOrder.findOne({
+      _id: req.params.id,
+      branch_id: req.user?.branch_id
+    });
+
+    if (!purchaseOrder) {
+      return res.status(404).json({ message: "Purchase Order not found" });
+    }
+
+    if (!['PENDING', 'DRAFT'].includes(purchaseOrder.status)) {
+      return res.status(400).json({
+        message: `Cannot update PO with status: ${purchaseOrder.status}`
+      });
+    }
+
+    const supplierId = req.body?.supplier_id ?? req.body?.supplierId;
+    const itemsRaw = req.body?.items;
+    const deliveryDate = req.body?.deliveryDate ?? req.body?.expectedDeliveryDate;
+    const notes = req.body?.notes;
+
+    if (supplierId) {
+      if (!mongoose.isValidObjectId(supplierId)) {
+        return res.status(400).json({ message: "Invalid supplier id" });
+      }
+      const supplier = await Supplier.findOne({
+        _id: supplierId,
+        branch_id: req.user?.branch_id
+      });
+      if (!supplier) {
+        return res.status(404).json({ message: "Supplier not found" });
+      }
+      purchaseOrder.supplier_id = supplierId;
+    }
+
+    if (Array.isArray(itemsRaw) && itemsRaw.length > 0) {
+      const items = itemsRaw.map((item: any) => {
+        const productId = item?.product_id ?? item?.productId;
+        const quantity = Number(item?.quantity);
+        const unitPrice = Number(item?.unitPrice);
+        const totalPrice = Number.isFinite(Number(item?.totalPrice))
+          ? Number(item?.totalPrice)
+          : quantity * unitPrice;
+
+        return {
+          product_id: productId,
+          productName: item?.productName,
+          quantity,
+          unitPrice,
+          totalPrice
+        };
+      });
+
+      for (const item of items) {
+        if (!item.product_id || !mongoose.isValidObjectId(item.product_id)) {
+          return res.status(400).json({ message: "Invalid product id in items" });
+        }
+        if (!item.productName) {
+          return res.status(400).json({ message: "productName is required in items" });
+        }
+        if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+          return res.status(400).json({ message: "quantity must be a positive number" });
+        }
+        if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
+          return res.status(400).json({ message: "unitPrice must be a valid number" });
+        }
+      }
+
+      purchaseOrder.items = items;
+      purchaseOrder.totalAmount = items.reduce(
+        (sum: number, item: any) => sum + (item.totalPrice || 0),
+        0
+      );
+    }
+
+    if (deliveryDate !== undefined) purchaseOrder.deliveryDate = deliveryDate;
+    if (notes !== undefined) purchaseOrder.notes = notes;
+
+    await purchaseOrder.save();
+
+    res.status(200).json({
+      message: "Purchase Order updated successfully",
+      purchaseOrder
+    });
+  } catch (error: any) {
+    if (error?.name === "CastError") {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const getPurchaseOrders = async (req: AuthRequest, res: Response) => {
   try {
     const { status, supplierId, page = 1, limit = 10 } = req.query;
