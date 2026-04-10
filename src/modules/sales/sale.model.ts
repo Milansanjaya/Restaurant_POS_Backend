@@ -21,6 +21,8 @@ export interface ISale extends Document {
   subtotal: number;
   taxTotal: number;
   discount: number;
+  serviceCharge: number;
+  packagingCharge: number;
   grandTotal: number;
 
   payments: {
@@ -104,6 +106,8 @@ const SaleSchema = new Schema<ISale>(
     subtotal: { type: Number, required: true },
     taxTotal: { type: Number, required: true },
     discount: { type: Number, default: 0 },
+    serviceCharge: { type: Number, default: 0 },
+    packagingCharge: { type: Number, default: 0 },
     grandTotal: { type: Number, required: true },
 
     payments: [

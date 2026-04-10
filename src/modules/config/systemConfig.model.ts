@@ -26,6 +26,8 @@ export interface ISystemConfig extends Document {
   currency: ICurrencySettings;
   expiryAlertDays: number;
   invoiceFormat: IInvoiceFormat;
+  serviceCharge: number;
+  packagingCharge: number;
   logo?: string;
   emailTemplates: Map<string, string>;
   smsTemplates: Map<string, string>;
@@ -54,6 +56,8 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
       numberLength: { type: Number, default: 6 },
       footer: { type: String, default: 'Thank you for your business!' }
     },
+    serviceCharge: { type: Number, default: 0 },
+    packagingCharge: { type: Number, default: 0 },
     logo: { type: String },
     emailTemplates: { type: Map, of: String, default: {} },
     smsTemplates: { type: Map, of: String, default: {} },
