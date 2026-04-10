@@ -11,7 +11,6 @@ import Table from "../tables/table.model";
 import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
 import FIFOBatchService from "./fifoBatchService";  // FIFO service
-import SystemConfig from "../config/systemConfig.model";
 
 // ================= GET ALL SALES =================
 export const getSales = async (req: AuthRequest, res: Response) => {
@@ -280,15 +279,10 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       finalDiscount = subtotal + taxTotal;
     }
 
-    // ✅ Service / Packaging charges (per order type)
-    const config = await SystemConfig.findOne({ branch_id: req.user?.branch_id });
-    const serviceCharge = resolvedOrderType === "DINE_IN" ? (config?.serviceCharge || 0) : 0;
-    const packagingCharge = resolvedOrderType !== "DINE_IN" ? (config?.packagingCharge || 0) : 0;
-
     // ✅ Create new sale if no active one exists
     if (!sale) {
       const invoiceNumber = `INV-${Date.now()}`;
-      const initialGrandTotal = subtotal + taxTotal - finalDiscount + serviceCharge + packagingCharge;
+      const initialGrandTotal = subtotal + taxTotal - finalDiscount;
 
       const isOpenTableSale = Boolean(table) && !isImmediatePayment;
 
@@ -318,8 +312,6 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         discountType: appliedDiscountType,
         discountValue: appliedDiscountValue || 0,
         couponCode: appliedCouponCode || undefined,
-        serviceCharge,
-        packagingCharge,
         grandTotal: initialGrandTotal,
         createdBy: req.user?._id,
 
@@ -410,10 +402,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         sale.reservation = reservation._id;
       }
 
-      const appliedServiceCharge = sale.serviceCharge || 0;
-      const appliedPackagingCharge = sale.packagingCharge || 0;
-      sale.grandTotal =
-        sale.subtotal + sale.taxTotal - sale.discount + appliedServiceCharge + appliedPackagingCharge;
+      sale.grandTotal = sale.subtotal + sale.taxTotal - sale.discount;
       sale.balanceAmount = sale.grandTotal - sale.paidAmount;
 
       await sale.save();

@@ -92,15 +92,36 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
       .limit(Number(limit))
       .sort({ createdAt: -1 });
 
-    // 🔥 Add lowStock flag here
+    const productIds = products.map((product) => product._id);
+    const inventories = await Inventory.find({
+      product: { $in: productIds },
+      branch_id: req.user?.branch_id,
+      isActive: true
+    })
+      .select("product stockQuantity lowStockThreshold")
+      .lean();
+
+    const inventoryMap = new Map(
+      inventories.map((inv: any) => [String(inv.product), inv])
+    );
+
+    // 🔥 Add stock flags here
     const productsWithStockStatus = products.map((product: any) => {
-      const lowStock =
-        product.trackStock &&
-        product.stockQuantity <= product.lowStockThreshold;
+      const inventory = inventoryMap.get(String(product._id));
+      const stockQuantity =
+        typeof inventory?.stockQuantity === "number" ? inventory.stockQuantity : 0;
+      const lowStockThreshold =
+        typeof inventory?.lowStockThreshold === "number"
+          ? inventory.lowStockThreshold
+          : product.lowStockThreshold ?? 0;
+      const lowStock = product.trackStock && stockQuantity <= lowStockThreshold;
+      const outOfStock = product.trackStock && stockQuantity <= 0;
 
       return {
         ...product.toObject(),
-        lowStock
+        stockQuantity,
+        lowStock,
+        outOfStock
       };
     });
 
@@ -188,7 +209,31 @@ export const getProductById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.json({ product });
+    const inventory = await Inventory.findOne({
+      product: product._id,
+      branch_id: req.user?.branch_id,
+      isActive: true
+    })
+      .select("product stockQuantity lowStockThreshold")
+      .lean();
+
+    const stockQuantity =
+      typeof inventory?.stockQuantity === "number" ? inventory.stockQuantity : 0;
+    const lowStockThreshold =
+      typeof inventory?.lowStockThreshold === "number"
+        ? inventory.lowStockThreshold
+        : product.lowStockThreshold ?? 0;
+    const lowStock = product.trackStock && stockQuantity <= lowStockThreshold;
+    const outOfStock = product.trackStock && stockQuantity <= 0;
+
+    res.json({
+      product: {
+        ...product.toObject(),
+        stockQuantity,
+        lowStock,
+        outOfStock
+      }
+    });
 
   } catch (error: any) {
     res.status(500).json({
