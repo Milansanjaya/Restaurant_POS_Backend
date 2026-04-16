@@ -27,7 +27,9 @@ export interface ISystemConfig extends Document {
   expiryAlertDays: number;
   invoiceFormat: IInvoiceFormat;
   serviceCharge: number;
+  serviceChargeType: 'FIXED' | 'PERCENTAGE';
   packagingCharge: number;
+  packagingChargeType: 'FIXED' | 'PERCENTAGE';
   logo?: string;
   emailTemplates: Map<string, string>;
   smsTemplates: Map<string, string>;
@@ -57,7 +59,9 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
       footer: { type: String, default: 'Thank you for your business!' }
     },
     serviceCharge: { type: Number, default: 0 },
+    serviceChargeType: { type: String, enum: ['FIXED', 'PERCENTAGE'], default: 'PERCENTAGE' },
     packagingCharge: { type: Number, default: 0 },
+    packagingChargeType: { type: String, enum: ['FIXED', 'PERCENTAGE'], default: 'PERCENTAGE' },
     logo: { type: String },
     emailTemplates: { type: Map, of: String, default: {} },
     smsTemplates: { type: Map, of: String, default: {} },

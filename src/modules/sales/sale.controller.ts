@@ -11,6 +11,7 @@ import Table from "../tables/table.model";
 import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
 import FIFOBatchService from "./fifoBatchService";  // FIFO service
+import SystemConfig from "../config/systemConfig.model";
 
 // ================= GET ALL SALES =================
 export const getSales = async (req: AuthRequest, res: Response) => {
@@ -238,11 +239,29 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // ✅ Load system config for service/packaging charges
+    const config = await SystemConfig.findOne({ branch_id: req.user?.branch_id });
+    const scRate = config?.serviceCharge ?? 0;
+    const scType = config?.serviceChargeType ?? 'FIXED';
+    const pcRate = config?.packagingCharge ?? 0;
+    const pcType = config?.packagingChargeType ?? 'FIXED';
+
+    // Service charge applies to DINE_IN only; packaging charge applies to TAKEAWAY/DELIVERY
+    const effectiveServiceCharge = resolvedOrderType === 'DINE_IN'
+      ? (scType === 'PERCENTAGE' ? Math.round((subtotal * scRate / 100) * 100) / 100 : scRate)
+      : 0;
+    const effectivePackagingCharge = resolvedOrderType !== 'DINE_IN'
+      ? (pcType === 'PERCENTAGE' ? Math.round((subtotal * pcRate / 100) * 100) / 100 : pcRate)
+      : 0;
+
     // ✅ Discount / coupon logic
     let finalDiscount = 0;
     let appliedDiscountType = discountType;
     let appliedDiscountValue = discountValue;
     let appliedCouponCode = couponCode;
+
+    // Discount base = subtotal + tax (before charges)
+    const discountBase = subtotal + taxTotal;
 
     if (couponCode) {
       const coupon = await Coupon.findOne({ code: couponCode });
@@ -260,7 +279,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       }
 
       if (coupon.discountType === "PERCENTAGE") {
-        finalDiscount = (subtotal + taxTotal) * (coupon.value / 100);
+        finalDiscount = Math.round(discountBase * (coupon.value / 100) * 100) / 100;
       } else {
         finalDiscount = coupon.value;
       }
@@ -269,20 +288,22 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       appliedDiscountValue = coupon.value;
     } else if (discountType && discountValue) {
       if (discountType === "PERCENTAGE") {
-        finalDiscount = (subtotal + taxTotal) * (discountValue / 100);
+        finalDiscount = Math.round(discountBase * (discountValue / 100) * 100) / 100;
       } else {
         finalDiscount = discountValue;
       }
     }
 
-    if (finalDiscount > subtotal + taxTotal) {
-      finalDiscount = subtotal + taxTotal;
+    // Clamp discount so it never exceeds the discount base (prevent negative totals)
+    if (finalDiscount > discountBase) {
+      finalDiscount = discountBase;
     }
 
     // ✅ Create new sale if no active one exists
     if (!sale) {
       const invoiceNumber = `INV-${Date.now()}`;
-      const initialGrandTotal = subtotal + taxTotal - finalDiscount;
+      // Correct formula: subtotal + tax + charges - discount
+      const initialGrandTotal = Math.max(0, subtotal + taxTotal + effectiveServiceCharge + effectivePackagingCharge - finalDiscount);
 
       const isOpenTableSale = Boolean(table) && !isImmediatePayment;
 
@@ -312,6 +333,8 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         discountType: appliedDiscountType,
         discountValue: appliedDiscountValue || 0,
         couponCode: appliedCouponCode || undefined,
+        serviceCharge: effectiveServiceCharge,
+        packagingCharge: effectivePackagingCharge,
         grandTotal: initialGrandTotal,
         createdBy: req.user?._id,
 
