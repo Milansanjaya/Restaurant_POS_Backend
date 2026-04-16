@@ -39,7 +39,8 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
       gstNumber,
       panNumber,
       branch_id: req.user?.branch_id,
-      outstandingBalance: 0
+      outstandingBalance: 0,
+      createdBy: req.user?._id
     });
 
     res.status(201).json({
