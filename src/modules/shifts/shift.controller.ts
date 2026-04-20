@@ -2,14 +2,30 @@ import { Response } from "express";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import Shift from "./shift.model";
 import Sale from "../sales/sale.model";
+import { autoCloseOpenShiftForCashierIfDue } from "../../shared/shiftAutoClose";
+
+const get2359Cutoff = (d: Date) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0, 0);
 
 // Get current open shift for the logged-in user
 export const getCurrentShift = async (req: AuthRequest, res: Response) => {
   try {
-    const shift = await Shift.findOne({
-      cashier: req.user?._id,
-      status: "OPEN"
-    }).populate("cashier", "name email");
+    const branch_id = req.user?.branch_id;
+    const cashierId = req.user?._id;
+
+    if (!branch_id || !cashierId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { shift: currentShift } = await autoCloseOpenShiftForCashierIfDue({
+      branch_id,
+      cashierId: cashierId.toString(),
+      now: new Date(),
+    });
+
+    const shift = currentShift
+      ? await Shift.findById(currentShift._id).populate("cashier", "name email")
+      : null;
 
     res.json({
       shift: shift || null
@@ -94,20 +110,38 @@ export const openShift = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const branch_id = req.user?.branch_id;
+    const cashierId = req.user?._id;
+
+    if (!branch_id || !cashierId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const existingShift = await Shift.findOne({
-      cashier: req.user?._id,
+      branch_id,
+      cashier: cashierId,
       status: "OPEN"
     });
 
     if (existingShift) {
-      return res.status(400).json({
-        message: "Shift already open"
-      });
+      const cutoff = get2359Cutoff(new Date(existingShift.openedAt));
+      const now = new Date();
+      if (now.getTime() >= cutoff.getTime()) {
+        await autoCloseOpenShiftForCashierIfDue({
+          branch_id,
+          cashierId: cashierId.toString(),
+          now,
+        });
+      } else {
+        return res.status(400).json({
+          message: "Shift already open"
+        });
+      }
     }
 
     const shift = await Shift.create({
-      branch_id: req.user?.branch_id,
-      cashier: req.user?._id,
+      branch_id,
+      cashier: cashierId,
       openingCash
     });
 
@@ -146,6 +180,7 @@ export const closeShift = async (req: AuthRequest, res: Response) => {
 
     const sales = await Sale.find({
       branch_id: req.user?.branch_id,
+      createdBy: req.user?._id,
       status: "COMPLETED",
       paymentMethod: "CASH",
       createdAt: { $gte: shift.openedAt }

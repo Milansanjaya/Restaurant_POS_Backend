@@ -7,6 +7,7 @@ import { connectDatabase } from "./config/database";
 import { seedPermissions, seedRoles } from "./shared/seedPermissions";
 import { assignAdminPermissions } from "./shared/assignAdminPermissions";
 import { initSocket } from "./infrastructure/socket";
+import { startShiftAutoCloseScheduler } from "./shared/shiftAutoClose";
 
 const PORT = process.env.PORT || 5000;
 
@@ -21,6 +22,8 @@ const startServer = async () => {
     await seedPermissions();
     await seedRoles();
     await assignAdminPermissions();
+
+    startShiftAutoCloseScheduler();
 
     const server = http.createServer(app);
     initSocket(server);

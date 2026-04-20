@@ -10,6 +10,9 @@ export interface IShift extends Document {
   status: "OPEN" | "CLOSED";
   openedAt: Date;
   closedAt?: Date;
+  autoClosed?: boolean;
+  autoClosedAt?: Date;
+  autoClosedReason?: string;
 }
 
 const ShiftSchema = new Schema<IShift>(
@@ -20,6 +23,9 @@ const ShiftSchema = new Schema<IShift>(
     closingCash: Number,
     expectedCash: Number,
     cashDifference: Number,
+    autoClosed: { type: Boolean, default: false },
+    autoClosedAt: Date,
+    autoClosedReason: String,
     status: {
       type: String,
       enum: ["OPEN", "CLOSED"],
