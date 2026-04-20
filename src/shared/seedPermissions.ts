@@ -189,6 +189,7 @@ export const seedRoles = async () => {
         "VIEW_TABLES",
         "VIEW_SHIFTS", "MANAGE_SHIFTS",
         "VIEW_COUPONS",
+        "VIEW_DISCOUNTS",
         "CREATE_RETURN",
       ].map(name => permissionMap.get(name)).filter(Boolean),
     },
