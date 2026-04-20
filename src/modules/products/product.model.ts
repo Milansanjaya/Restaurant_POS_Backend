@@ -5,6 +5,7 @@ export interface IProduct extends Document {
   sku: string;
   barcode?: string;
   category: string;
+  discount?: mongoose.Types.ObjectId | null;
   price: number;
   cost: number;
   taxRate: number;
@@ -23,6 +24,7 @@ const ProductSchema = new Schema<IProduct>(
     sku: { type: String, required: true, unique: true },
     barcode: { type: String },
     category: { type: String, required: true },
+    discount: { type: Schema.Types.ObjectId, ref: "Discount", default: null },
     price: { type: Number, required: true },
     cost: { type: Number, required: true },
     taxRate: { type: Number, default: 0 },

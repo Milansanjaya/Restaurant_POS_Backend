@@ -85,6 +85,12 @@ export const seedPermissions = async () => {
     { name: "CREATE_COUPON", description: "Create coupons" },
     { name: "EDIT_COUPON", description: "Edit coupons" },
     { name: "DELETE_COUPON", description: "Delete coupons" },
+
+    // Discounts
+    { name: "VIEW_DISCOUNTS", description: "View discounts" },
+    { name: "CREATE_DISCOUNT", description: "Create discounts" },
+    { name: "EDIT_DISCOUNT", description: "Edit discounts" },
+    { name: "DELETE_DISCOUNT", description: "Delete discounts" },
     
     // Returns
     { name: "VIEW_RETURNS", description: "View sales returns" },
@@ -164,6 +170,7 @@ export const seedRoles = async () => {
         "VIEW_GRN", "CREATE_GRN", "APPROVE_GRN",
         "VIEW_BATCHES",
         "VIEW_COUPONS", "CREATE_COUPON", "EDIT_COUPON",
+        "VIEW_DISCOUNTS", "CREATE_DISCOUNT", "EDIT_DISCOUNT", "DELETE_DISCOUNT",
         "VIEW_RETURNS", "CREATE_RETURN",
         "VIEW_REPORTS", "EXPORT_REPORTS",
         "VIEW_UNITS",

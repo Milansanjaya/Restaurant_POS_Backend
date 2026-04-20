@@ -13,6 +13,29 @@ import Coupon from "../coupons/coupon.model";
 import FIFOBatchService from "./fifoBatchService";  // FIFO service
 import SystemConfig from "../config/systemConfig.model";
 
+const isDiscountActiveNow = (discount: any, now: Date) => {
+  if (!discount?.isActive) return false;
+  const from = discount.validFrom ? new Date(discount.validFrom) : undefined;
+  const to = discount.validTo ? new Date(discount.validTo) : undefined;
+  if (from && !Number.isNaN(from.getTime()) && now.getTime() < from.getTime()) return false;
+  if (to && !Number.isNaN(to.getTime()) && now.getTime() > to.getTime()) return false;
+  return true;
+};
+
+const getDiscountedUnitPrice = (originalPrice: number, discount: any) => {
+  if (!discount) return originalPrice;
+  let next = originalPrice;
+  if (discount.discountType === "PERCENTAGE") {
+    const pct = Number(discount.value);
+    next = originalPrice * (1 - pct / 100);
+  } else if (discount.discountType === "FLAT") {
+    const flat = Number(discount.value);
+    next = originalPrice - flat;
+  }
+  if (!Number.isFinite(next)) return originalPrice;
+  return Math.max(0, Math.round(next * 100) / 100);
+};
+
 // ================= GET ALL SALES =================
 export const getSales = async (req: AuthRequest, res: Response) => {
   try {
@@ -125,6 +148,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
     let subtotal = 0;
     let taxTotal = 0;
     const processedItems: any[] = [];
+    const now = new Date();
 
     let table: any = null;
     let sale: any = null;
@@ -192,11 +216,11 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
     // ✅ Validate items + inventory + calculate
     for (const item of items) {
-      const product = await Product.findOne({
+      const product: any = await Product.findOne({
         _id: item.product,
         branch_id: req.user?.branch_id,
         isActive: true
-      });
+      }).populate("discount");
 
       if (!product) {
         return res.status(404).json({
@@ -222,7 +246,17 @@ export const createSale = async (req: AuthRequest, res: Response) => {
         });
       }
 
-      const itemSubtotal = product.price * item.quantity;
+      const originalUnitPrice = Number(product.price);
+      const discountDoc =
+        product.discount && typeof product.discount === "object" && "discountType" in product.discount
+          ? product.discount
+          : null;
+      const unitPrice =
+        discountDoc && isDiscountActiveNow(discountDoc, now)
+          ? getDiscountedUnitPrice(originalUnitPrice, discountDoc)
+          : originalUnitPrice;
+
+      const itemSubtotal = unitPrice * item.quantity;
       const itemTax = (itemSubtotal * product.taxRate) / 100;
 
       subtotal += itemSubtotal;
@@ -231,7 +265,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
       processedItems.push({
         product: product._id,
         quantity: item.quantity,
-        price: product.price,
+        price: unitPrice,
         cost: product.cost ?? 0,
         taxRate: product.taxRate,
         subtotal: itemSubtotal,

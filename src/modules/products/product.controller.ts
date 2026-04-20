@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import Product from "./product.model";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import Inventory from "../inventory/inventory.model";
+import Discount from "../discounts/discount.model";
 
 
 
@@ -20,12 +22,28 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     const category = req.body.category ?? req.body.category_id ?? req.body.categoryId;
     const taxRate = req.body.taxRate ?? req.body.tax_rate ?? 0;
     const trackStock = req.body.trackStock ?? req.body.track_stock ?? false;
+    const discountRaw = req.body.discount ?? req.body.discount_id ?? req.body.discountId;
 
     const branch_id = req.user?.branch_id;
     const createdBy = req.user?._id;
 
     if (!branch_id || !createdBy) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    let discount: any = undefined;
+    if (discountRaw !== undefined && discountRaw !== null && discountRaw !== "") {
+      if (!mongoose.Types.ObjectId.isValid(String(discountRaw))) {
+        return res.status(400).json({ message: "Invalid discount id" });
+      }
+      const discountDoc = await Discount.findOne({
+        _id: String(discountRaw),
+        branch_id,
+      });
+      if (!discountDoc) {
+        return res.status(400).json({ message: "Discount not found" });
+      }
+      discount = discountDoc._id;
     }
 
     if (!name || !sku || !category || price === undefined || cost === undefined) {
@@ -45,6 +63,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       sku,
       barcode,
       category,
+      discount,
       price,
       cost,
       taxRate,
@@ -90,7 +109,8 @@ export const getProducts = async (req: AuthRequest, res: Response) => {
     const products = await Product.find(query)
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit))
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .populate("discount");
 
     const productIds = products.map((product) => product._id);
     const inventories = await Inventory.find({
@@ -144,13 +164,34 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
+    const update: any = { ...req.body };
+
+    const discountRaw = update.discount ?? update.discount_id ?? update.discountId;
+    if (discountRaw !== undefined) {
+      if (discountRaw === null || discountRaw === "") {
+        update.discount = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(String(discountRaw))) {
+          return res.status(400).json({ message: "Invalid discount id" });
+        }
+        const discountDoc = await Discount.findOne({
+          _id: String(discountRaw),
+          branch_id: req.user?.branch_id,
+        });
+        if (!discountDoc) {
+          return res.status(400).json({ message: "Discount not found" });
+        }
+        update.discount = discountDoc._id;
+      }
+    }
+
     const product = await Product.findOneAndUpdate(
       {
         _id: id,
         branch_id: req.user?.branch_id
       },
-      req.body,
-      { new: true }
+      update,
+      { new: true, runValidators: true }
     );
 
     if (!product) {
@@ -203,7 +244,7 @@ export const getProductById = async (req: AuthRequest, res: Response) => {
       _id: id,
       branch_id: req.user?.branch_id,
       isActive: true
-    });
+    }).populate("discount");
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
