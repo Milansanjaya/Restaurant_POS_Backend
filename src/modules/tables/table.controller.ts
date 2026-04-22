@@ -62,6 +62,29 @@ export const getTables = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const getTableById = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const table = await Table.findOne({
+      _id: id,
+      branch_id: req.user?.branch_id,
+      isActive: true
+    });
+
+    if (!table) {
+      return res.status(404).json({ message: "Table not found" });
+    }
+
+    res.json({ table });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 export const updateTableStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;

@@ -99,6 +99,34 @@ export const getSales = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// ================= GET SINGLE SALE =================
+export const getSaleById = async (req: AuthRequest, res: Response) => {
+  try {
+    const branchId = req.user?.branch_id;
+    if (!branchId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { saleId } = req.params;
+    const sale = await Sale.findOne({ _id: saleId, branch_id: branchId })
+      .populate("createdBy", "name email")
+      .populate("items.product", "name price cost")
+      .populate("customer_id", "name phone email")
+      .populate("table", "tableNumber section");
+
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    res.json({ sale });
+  } catch (error: any) {
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 // ================= CREATE / ADD TO SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
   try {

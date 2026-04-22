@@ -4,6 +4,7 @@ import {
   voidSale,
   closeTableSale,
   paySale,
+  getSaleById,
   getInvoice,
   refundSale,
   getSales
@@ -50,6 +51,13 @@ router.get(
   authenticate,
   authorize("VIEW_SALES"),
   getInvoice
+);
+
+router.get(
+  "/:saleId",
+  authenticate,
+  authorize("VIEW_SALES"),
+  getSaleById
 );
 
 router.post(

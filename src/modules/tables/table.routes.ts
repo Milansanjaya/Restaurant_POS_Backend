@@ -3,6 +3,7 @@ import { authenticate } from "../../middleware/auth.middleware";
 import { authorize } from "../../middleware/permission.middleware";
 import {
   createTable,
+  getTableById,
   getTables,
   updateTable,
   deleteTable,
@@ -17,6 +18,13 @@ router.get(
   authenticate,
   authorize("VIEW_TABLES"),
   getTables
+);
+
+router.get(
+  "/:id",
+  authenticate,
+  authorize("VIEW_TABLES"),
+  getTableById
 );
 
 router.post(
