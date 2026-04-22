@@ -5,6 +5,7 @@ import LoyaltyAccount from "./loyaltyAccount.model";
 import LoyaltyTransaction from "./loyaltyTransaction.model";
 import WalletTransaction from "./walletTransaction.model";
 import Customer from "../customers/customer.model";
+import SystemConfig from "../config/systemConfig.model";
 
 export class LoyaltyController {
   // Get or create loyalty account
@@ -69,7 +70,7 @@ export class LoyaltyController {
         });
       }
 
-      const customer = await Customer.findById(customerId).select("_id");
+      const customer = await Customer.findById(customerId).select("_id tier");
       if (!customer) {
         return res.status(404).json({
           success: false,
@@ -96,8 +97,20 @@ export class LoyaltyController {
       const rawSaleId = (req as any).body?.sale_id ?? (req as any).body?.saleId;
       const sale_id = rawSaleId && mongoose.isValidObjectId(rawSaleId) ? rawSaleId : undefined;
 
-      // Points calculation: 1 point per $10 spent
-      const pointsEarned = Math.floor(saleAmount / 10);
+      const branch_id = (req as any).body?.branch_id;
+      const config = branch_id ? await SystemConfig.findOne({ branch_id }) : null;
+
+      const pointsPerDollar = typeof (config as any)?.pointsPerDollar === "number" ? (config as any).pointsPerDollar : 0.1;
+      const pointsExpiryDays = typeof (config as any)?.pointsExpiryDays === "number" ? (config as any).pointsExpiryDays : 365;
+      const tier = String((customer as any)?.tier || "BASIC").toUpperCase();
+      const multipliers = (config as any)?.pointsMultiplierByTier || {};
+      const tierMultiplierRaw = (multipliers as any)?.[tier];
+      const tierMultiplier = typeof tierMultiplierRaw === "number" && Number.isFinite(tierMultiplierRaw) ? tierMultiplierRaw : 1;
+
+      // Points calculation: base points per 1 currency unit * tier multiplier
+      // Example: 0.1 points/unit and 1000 spent => 100 points (before multiplier)
+      const rawPoints = saleAmount * pointsPerDollar * tierMultiplier;
+      const pointsEarned = Math.floor(rawPoints);
       if (pointsEarned <= 0) {
         return res.status(200).json({
           success: true,
@@ -111,12 +124,21 @@ export class LoyaltyController {
         account = new LoyaltyAccount({ customer_id: customerId });
       }
 
+      // Keep account tier aligned with customer tier
+      (account as any).tier = tier;
+
       account.pointsBalance = (account.pointsBalance ?? 0) + pointsEarned;
       account.lifetimePoints = (account.lifetimePoints ?? 0) + pointsEarned;
 
-      const expiryDate = new Date();
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-      account.pointsExpiryDate = expiryDate;
+      let expiryDate: Date | undefined;
+      if (typeof pointsExpiryDays === "number" && pointsExpiryDays > 0) {
+        expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + pointsExpiryDays);
+        account.pointsExpiryDate = expiryDate;
+      } else {
+        expiryDate = undefined;
+        account.pointsExpiryDate = undefined;
+      }
 
       await account.save();
 

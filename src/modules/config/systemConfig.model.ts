@@ -35,6 +35,12 @@ export interface ISystemConfig extends Document {
   smsTemplates: Map<string, string>;
   pointsPerDollar: number;
   pointsExpiryDays: number;
+  pointsMultiplierByTier?: {
+    BASIC?: number;
+    SILVER?: number;
+    GOLD?: number;
+    PLATINUM?: number;
+  };
 }
 
 const SystemConfigSchema = new Schema<ISystemConfig>(
@@ -66,7 +72,13 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
     emailTemplates: { type: Map, of: String, default: {} },
     smsTemplates: { type: Map, of: String, default: {} },
     pointsPerDollar: { type: Number, default: 0.1 },
-    pointsExpiryDays: { type: Number, default: 365 }
+    pointsExpiryDays: { type: Number, default: 365 },
+    pointsMultiplierByTier: {
+      BASIC: { type: Number, default: 1 },
+      SILVER: { type: Number, default: 1 },
+      GOLD: { type: Number, default: 1 },
+      PLATINUM: { type: Number, default: 1 },
+    },
   },
   { timestamps: true }
 );
