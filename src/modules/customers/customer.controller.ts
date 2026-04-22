@@ -238,6 +238,32 @@ export class CustomerController {
   async deleteCustomer(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
+      const permanent = String((req.query as any)?.permanent || '').toLowerCase() === 'true';
+
+      const existingCustomer = await Customer.findById(id).select('_id isWalkIn');
+
+      if (!existingCustomer) {
+        return res.status(404).json({
+          success: false,
+          message: "Customer not found"
+        });
+      }
+
+      if (existingCustomer.isWalkIn) {
+        return res.status(400).json({
+          success: false,
+          message: "Walk-in customer cannot be deleted"
+        });
+      }
+
+      if (permanent) {
+        await Customer.findByIdAndDelete(id);
+
+        return res.status(200).json({
+          success: true,
+          message: "Customer permanently deleted successfully"
+        });
+      }
 
       const customer = await Customer.findByIdAndUpdate(
         id,
@@ -254,7 +280,7 @@ export class CustomerController {
 
       res.status(200).json({
         success: true,
-        message: "Customer deleted successfully"
+        message: "Customer deactivated successfully"
       });
     } catch (error: any) {
       res.status(500).json({
