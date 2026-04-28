@@ -175,6 +175,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
     let subtotal = 0;
     let taxTotal = 0;
+    let productDiscount = 0;  // sum of (originalPrice - discountedPrice) * qty
     const processedItems: any[] = [];
     const now = new Date();
 
@@ -286,14 +287,18 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
       const itemSubtotal = unitPrice * item.quantity;
       const itemTax = (itemSubtotal * product.taxRate) / 100;
+      // accumulate product-level discount
+      const itemProductDiscount = (originalUnitPrice - unitPrice) * item.quantity;
 
       subtotal += itemSubtotal;
       taxTotal += itemTax;
+      productDiscount += itemProductDiscount;
 
       processedItems.push({
         product: product._id,
         quantity: item.quantity,
         price: unitPrice,
+        originalPrice: originalUnitPrice,  // store for display
         cost: product.cost ?? 0,
         taxRate: product.taxRate,
         subtotal: itemSubtotal,
@@ -385,11 +390,13 @@ export const createSale = async (req: AuthRequest, res: Response) => {
           product: item.product,
           quantity: item.quantity,
           price: item.price,
+          originalPrice: item.originalPrice,   // ← persist pre-discount price
           cost: item.cost ?? 0,
           taxRate: item.taxRate,
           subtotal: item.subtotal
         })),
         subtotal,
+        productDiscount,                        // ← total product-level discount
         taxTotal,
         discount: finalDiscount,
         discountType: appliedDiscountType,

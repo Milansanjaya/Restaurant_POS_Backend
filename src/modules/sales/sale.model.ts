@@ -10,17 +10,19 @@ export interface ISale extends Document {
   items: {
     product: mongoose.Types.ObjectId;
     quantity: number;
-    price: number;
-    cost?: number; // product cost captured at sale time (for profit reporting)
+    price: number;           // effective (discounted) unit price
+    originalPrice?: number;  // original price before product discount
+    cost?: number;
     taxRate: number;
     subtotal: number;
-    batch_id?: mongoose.Types.ObjectId;  // FIFO: Track which batch was used
-    batchNumber?: string;                 // FIFO: Audit trail
+    batch_id?: mongoose.Types.ObjectId;
+    batchNumber?: string;
   }[];
 
-  subtotal: number;
+  subtotal: number;          // sum of item subtotals at effective (discounted) prices
+  productDiscount: number;   // total product-level discount (originalPrice - price) * qty
   taxTotal: number;
-  discount: number;
+  discount: number;          // manual / coupon discount
   serviceCharge: number;
   packagingCharge: number;
   grandTotal: number;
@@ -94,18 +96,20 @@ const SaleSchema = new Schema<ISale>(
           required: true
         },
         quantity: { type: Number, required: true },
-        price: { type: Number, required: true },
-        cost: { type: Number, default: 0 }, // captured product.cost at sale time
+        price: { type: Number, required: true },          // effective price
+        originalPrice: { type: Number },                   // pre-discount price
+        cost: { type: Number, default: 0 },
         taxRate: { type: Number, required: true },
         subtotal: { type: Number, required: true },
-        batch_id: { type: Schema.Types.ObjectId, ref: "Batch" },  // FIFO tracking
-        batchNumber: { type: String }                              // FIFO audit trail
+        batch_id: { type: Schema.Types.ObjectId, ref: "Batch" },
+        batchNumber: { type: String }
       }
     ],
 
     subtotal: { type: Number, required: true },
+    productDiscount: { type: Number, default: 0 },  // total product-level discount
     taxTotal: { type: Number, required: true },
-    discount: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },           // manual/coupon discount
     serviceCharge: { type: Number, default: 0 },
     packagingCharge: { type: Number, default: 0 },
     grandTotal: { type: Number, required: true },
