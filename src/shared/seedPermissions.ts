@@ -94,6 +94,8 @@ export const seedPermissions = async () => {
     
     // Returns
     { name: "VIEW_RETURNS", description: "View sales returns" },
+    { name: "VIEW_CUSTOMER_RETURNS", description: "View customer order returns" },
+    { name: "VIEW_SUPPLIER_RETURNS", description: "View supplier returns" },
     { name: "CREATE_RETURN", description: "Process returns" },
     
     // Reports
@@ -171,7 +173,7 @@ export const seedRoles = async () => {
         "VIEW_BATCHES",
         "VIEW_COUPONS", "CREATE_COUPON", "EDIT_COUPON",
         "VIEW_DISCOUNTS", "CREATE_DISCOUNT", "EDIT_DISCOUNT", "DELETE_DISCOUNT",
-        "VIEW_RETURNS", "CREATE_RETURN",
+        "VIEW_RETURNS", "VIEW_CUSTOMER_RETURNS", "VIEW_SUPPLIER_RETURNS", "CREATE_RETURN",
         "VIEW_REPORTS", "EXPORT_REPORTS",
         "VIEW_UNITS",
       ].map(name => permissionMap.get(name)).filter(Boolean),
@@ -190,7 +192,7 @@ export const seedRoles = async () => {
         "VIEW_SHIFTS", "MANAGE_SHIFTS",
         "VIEW_COUPONS",
         "VIEW_DISCOUNTS",
-        "CREATE_RETURN",
+        "VIEW_RETURNS", "VIEW_CUSTOMER_RETURNS", "CREATE_RETURN",
       ].map(name => permissionMap.get(name)).filter(Boolean),
     },
     {
