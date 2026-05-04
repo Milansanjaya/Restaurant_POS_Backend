@@ -37,42 +37,42 @@ router.get(
 );
 
 router.get(
-  "/:id([0-9a-fA-F]{24})",
+  "/:id",
   authenticate,
   authorize("VIEW_GRN"),
   getGRNById
 );
 
 router.get(
-  "/:id([0-9a-fA-F]{24})/payments",
+  "/:id/payments",
   authenticate,
   authorize("VIEW_GRN"),
   getPaymentsForGRN
 );
 
 router.post(
-  "/:id([0-9a-fA-F]{24})/payments",
+  "/:id/payments",
   authenticate,
   authorize("RECORD_PAYMENT"),
   recordGRNPayment
 );
 
 router.put(
-  "/:id([0-9a-fA-F]{24})",
+  "/:id",
   authenticate,
   authorize("CREATE_GRN"),
   updateGRN
 );
 
 router.delete(
-  "/:id([0-9a-fA-F]{24})",
+  "/:id",
   authenticate,
   authorize("CREATE_GRN"),
   deleteGRN
 );
 
 router.put(
-  "/:id([0-9a-fA-F]{24})/approve",
+  "/:id/approve",
   authenticate,
   authorize("APPROVE_GRN"),
   approveGRN
