@@ -13,6 +13,13 @@ export class ConfigController {
         // Create default config
         config = new SystemConfig({ branch_id });
         await config.save();
+      } else {
+        // Backfill defaults for newly added fields (keeps DB consistent)
+        const cfgAny = config as any;
+        if (typeof cfgAny.dailyReceiptNumberLimit !== 'number' || cfgAny.dailyReceiptNumberLimit < 1) {
+          cfgAny.dailyReceiptNumberLimit = 1500;
+          await config.save();
+        }
       }
 
       res.status(200).json({
@@ -36,6 +43,19 @@ export class ConfigController {
 
       delete updateData.branch_id;
       delete updateData.userId;
+
+      if (Object.prototype.hasOwnProperty.call(updateData, 'dailyReceiptNumberLimit')) {
+        const raw = (updateData as any).dailyReceiptNumberLimit;
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n < 1) {
+          return res.status(400).json({
+            success: false,
+            message: "dailyReceiptNumberLimit must be a number >= 1"
+          });
+        }
+        // Keep within a sane upper bound to avoid accidental huge values
+        (updateData as any).dailyReceiptNumberLimit = Math.min(100000, Math.floor(n));
+      }
 
       let config = await SystemConfig.findOne({ branch_id });
 

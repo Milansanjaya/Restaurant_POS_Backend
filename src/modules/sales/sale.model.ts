@@ -2,6 +2,8 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface ISale extends Document {
   invoiceNumber: string;
+  receiptNumber?: number;
+  receiptDay?: string;
   branch_id: string;
   customer_id?: mongoose.Types.ObjectId;  // Optional customer for loyalty tracking
   orderType?: "DINE_IN" | "TAKEAWAY" | "DELIVERY";
@@ -72,6 +74,9 @@ export interface ISale extends Document {
 const SaleSchema = new Schema<ISale>(
   {
     invoiceNumber: { type: String, required: true, unique: true },
+
+    receiptNumber: { type: Number },
+    receiptDay: { type: String },
 
     branch_id: { type: String, required: true },
 
@@ -195,5 +200,8 @@ refunds: [
   },
   { timestamps: true }
 );
+
+// Ensure receipt numbers are unique per branch per day (only when set)
+SaleSchema.index({ branch_id: 1, receiptDay: 1, receiptNumber: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model<ISale>("Sale", SaleSchema);

@@ -12,6 +12,76 @@ import Reservation from "../reservations/reservation.model";
 import Coupon from "../coupons/coupon.model";
 import FIFOBatchService from "./fifoBatchService";  // FIFO service
 import SystemConfig from "../config/systemConfig.model";
+import DailyReceiptCounter from "./dailyReceiptCounter.model";
+
+class DailyReceiptLimitReachedError extends Error {
+  limit: number;
+  constructor(limit: number) {
+    super(`Daily receipt number limit reached (${limit}).`);
+    this.limit = limit;
+  }
+}
+
+const getLocalDayKey = (d: Date) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const getReceiptLimitForBranch = async (branchId: string) => {
+  const config = await SystemConfig.findOne({ branch_id: branchId });
+  const raw = (config as any)?.dailyReceiptNumberLimit;
+  const limit = Number.isFinite(Number(raw)) ? Number(raw) : 1500;
+  if (!Number.isFinite(limit) || limit < 1) return 1500;
+  return Math.min(100000, Math.floor(limit));
+};
+
+const allocateDailyReceiptNumber = async (branchId: string) => {
+  const limit = await getReceiptLimitForBranch(branchId);
+  const day = getLocalDayKey(new Date());
+
+  // Fast path: increment existing counter if below limit
+  const updated = await DailyReceiptCounter.findOneAndUpdate(
+    { branch_id: branchId, day, seq: { $lt: limit } },
+    { $inc: { seq: 1 } },
+    { new: true }
+  );
+
+  if (updated) {
+    return { receiptDay: day, receiptNumber: updated.seq, limit };
+  }
+
+  // Either no counter doc exists yet for today, or limit is reached.
+  const existing = await DailyReceiptCounter.findOne({ branch_id: branchId, day });
+  if (existing) {
+    throw new DailyReceiptLimitReachedError(limit);
+  }
+
+  if (limit < 1) {
+    throw new DailyReceiptLimitReachedError(limit);
+  }
+
+  // Create the counter for today with seq=1 (handle races via unique index)
+  try {
+    const created = await DailyReceiptCounter.create({ branch_id: branchId, day, seq: 1 });
+    return { receiptDay: day, receiptNumber: created.seq, limit };
+  } catch (err: any) {
+    // If another request created it first, retry the fast path once
+    if (err?.code === 11000) {
+      const retry = await DailyReceiptCounter.findOneAndUpdate(
+        { branch_id: branchId, day, seq: { $lt: limit } },
+        { $inc: { seq: 1 } },
+        { new: true }
+      );
+      if (retry) {
+        return { receiptDay: day, receiptNumber: retry.seq, limit };
+      }
+      throw new DailyReceiptLimitReachedError(limit);
+    }
+    throw err;
+  }
+};
 
 const isDiscountActiveNow = (discount: any, now: Date) => {
   if (!discount?.isActive) return false;
@@ -130,6 +200,11 @@ export const getSaleById = async (req: AuthRequest, res: Response) => {
 // ================= CREATE / ADD TO SALE =================
 export const createSale = async (req: AuthRequest, res: Response) => {
   try {
+    const branchId = req.user?.branch_id;
+    if (!branchId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const openShift = await Shift.findOne({
       cashier: req.user?._id,
       status: "OPEN"
@@ -187,7 +262,7 @@ export const createSale = async (req: AuthRequest, res: Response) => {
     if (tableId) {
       table = await Table.findOne({
         _id: tableId,
-        branch_id: req.user?.branch_id,
+        branch_id: branchId,
         isActive: true
       });
 
@@ -369,6 +444,22 @@ export const createSale = async (req: AuthRequest, res: Response) => {
     // ✅ Create new sale if no active one exists
     if (!sale) {
       const invoiceNumber = `INV-${Date.now()}`;
+      let receiptNumber: number | undefined;
+      let receiptDay: string | undefined;
+
+      try {
+        const alloc = await allocateDailyReceiptNumber(branchId);
+        receiptNumber = alloc.receiptNumber;
+        receiptDay = alloc.receiptDay;
+      } catch (err: any) {
+        if (err instanceof DailyReceiptLimitReachedError) {
+          return res.status(409).json({
+            message: `Daily receipt/bill number limit reached (${err.limit}). Please increase the limit in Settings or try again tomorrow.`
+          });
+        }
+        throw err;
+      }
+
       // Correct formula: subtotal + tax + charges - discount
       const initialGrandTotal = Math.max(0, subtotal + taxTotal + effectiveServiceCharge + effectivePackagingCharge - finalDiscount);
 
@@ -382,7 +473,9 @@ export const createSale = async (req: AuthRequest, res: Response) => {
 
       sale = await Sale.create({
         invoiceNumber,
-        branch_id: req.user?.branch_id,
+        receiptNumber,
+        receiptDay,
+        branch_id: branchId,
         customer_id: customerId || undefined,  // Optional customer for loyalty
         orderType: resolvedOrderType,
         table: table ? table._id : undefined,
@@ -971,6 +1064,8 @@ export const getInvoice = async (req: AuthRequest, res: Response) => {
 
     const invoice = {
       invoiceNumber: sale.invoiceNumber,
+      receiptNumber: (sale as any).receiptNumber,
+      receiptDay: (sale as any).receiptDay,
       date: sale.createdAt,
 
       table: table

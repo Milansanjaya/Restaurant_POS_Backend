@@ -25,6 +25,7 @@ export interface ISystemConfig extends Document {
   taxes: ITaxSettings[];
   currency: ICurrencySettings;
   expiryAlertDays: number;
+  dailyReceiptNumberLimit: number;
   invoiceFormat: IInvoiceFormat;
   serviceCharge: number;
   serviceChargeType: 'FIXED' | 'PERCENTAGE';
@@ -59,6 +60,7 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
       position: { type: String, enum: ['BEFORE', 'AFTER'], default: 'BEFORE' }
     },
     expiryAlertDays: { type: Number, default: 30 },
+    dailyReceiptNumberLimit: { type: Number, default: 1500 },
     invoiceFormat: {
       prefix: { type: String, default: 'INV' },
       numberLength: { type: Number, default: 6 },
