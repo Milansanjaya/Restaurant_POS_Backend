@@ -28,6 +28,8 @@ export interface IGRN extends Document {
   items: IGRNItem[];
   batches: IGRNBatch[];
   totalAmount: number;
+  paidAmount: number;
+  paymentStatus: "PENDING" | "PARTIALLY_PAID" | "FULLY_PAID";
   status: "DRAFT" | "APPROVED" | "RECEIVED" | "REJECTED";
   receivedDate: Date;
   approvedBy?: mongoose.Types.ObjectId;
@@ -75,6 +77,12 @@ const GRNSchema = new Schema<IGRN>(
     items: [GRNItemSchema],
     batches: [BatchSchema],
     totalAmount: { type: Number, required: true },
+    paidAmount: { type: Number, default: 0 },
+    paymentStatus: {
+      type: String,
+      enum: ["PENDING", "PARTIALLY_PAID", "FULLY_PAID"],
+      default: "PENDING"
+    },
     status: {
       type: String,
       enum: ["DRAFT", "APPROVED", "RECEIVED", "REJECTED"],
