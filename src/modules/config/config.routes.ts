@@ -10,6 +10,7 @@ router.use(authenticate);
 router.use(enforceBranch);
 
 router.get("/", authorize("VIEW_SETTINGS"), configController.getConfig);
+router.get("/receipt-preview", authorize("VIEW_SETTINGS"), configController.getReceiptPreview);
 router.put("/", authorize("MANAGE_SETTINGS"), configController.updateConfig);
 router.put("/tax", authorize("MANAGE_SETTINGS"), configController.updateTaxSettings);
 router.post("/logo", authorize("MANAGE_SETTINGS"), configController.uploadLogo);
