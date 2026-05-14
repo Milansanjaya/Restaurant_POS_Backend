@@ -8,6 +8,7 @@ import { seedPermissions, seedRoles } from "./shared/seedPermissions";
 import { assignAdminPermissions } from "./shared/assignAdminPermissions";
 import { initSocket } from "./infrastructure/socket";
 import { startShiftAutoCloseScheduler } from "./shared/shiftAutoClose";
+import { startCleanupJob } from "./core/jobs/cleanupTempUsers";
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,6 +25,7 @@ const startServer = async () => {
     await assignAdminPermissions();
 
     startShiftAutoCloseScheduler();
+    startCleanupJob();
 
     const server = http.createServer(app);
     initSocket(server);

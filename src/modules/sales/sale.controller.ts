@@ -126,6 +126,11 @@ export const getSales = async (req: AuthRequest, res: Response) => {
 
     const query: any = { branch_id: branchId };
 
+    // Demo users see only their own data
+    if ((req.user as any)?.is_temporary) {
+      query.createdBy = req.user?._id;
+    }
+
     if (req.query.status) {
       query.status = String(req.query.status);
     }
@@ -178,7 +183,14 @@ export const getSaleById = async (req: AuthRequest, res: Response) => {
     }
 
     const { saleId } = req.params;
-    const sale = await Sale.findOne({ _id: saleId, branch_id: branchId })
+    const query: any = { _id: saleId, branch_id: branchId };
+    
+    // Demo users can only access their own sales
+    if ((req.user as any)?.is_temporary) {
+      query.createdBy = req.user?._id;
+    }
+    
+    const sale = await Sale.findOne(query)
       .populate("createdBy", "name email")
       .populate("items.product", "name price cost")
       .populate("customer_id", "name phone email")

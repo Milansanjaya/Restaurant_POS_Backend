@@ -152,3 +152,82 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// Demo Login - Creates temporary isolated user session
+export const demoLogin = async (req: Request, res: Response) => {
+  try {
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: "JWT_SECRET not configured" });
+    }
+
+    // Generate unique session ID
+    const sessionId = `demo_session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Generate temporary demo email
+    const tempEmail = `${sessionId}@demo.local`;
+
+    // Get CASHIER role for demo users
+    const demoRole = await Role.findOne({ name: "CASHIER" });
+    if (!demoRole) {
+      return res.status(400).json({ message: "Demo role (CASHIER) not found" });
+    }
+
+    // Generate a temporary password
+    const tempPassword = await bcrypt.hash(sessionId, 10);
+
+    // Set expiration: 30 minutes from now
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    // Create temporary user
+    const tempUser = await User.create({
+      name: `Demo User (${sessionId.substring(0, 8)})`,
+      email: tempEmail,
+      password: tempPassword,
+      role: demoRole._id,
+      branch_id: "demo",
+      isActive: true,
+      is_temporary: true,
+      session_id: sessionId,
+      demo_expires_at: expiresAt
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: tempUser._id.toString(),
+        roleId: demoRole._id.toString(),
+        branch_id: "demo",
+        is_temporary: true,
+        session_id: sessionId
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "30m" }
+    );
+
+    const permissions = (demoRole as any)?.permissions?.map((p: any) => p.name) || [];
+
+    res.json({
+      token,
+      user: {
+        _id: tempUser._id,
+        name: tempUser.name,
+        email: tempUser.email,
+        branch_id: tempUser.branch_id,
+        role: {
+          _id: demoRole._id,
+          name: "CASHIER"
+        },
+        permissions,
+        is_temporary: true,
+        session_id: sessionId,
+        expires_at: expiresAt
+      }
+    });
+  } catch (error: any) {
+    console.error("DEMO LOGIN ERROR:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};

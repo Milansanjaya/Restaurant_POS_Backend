@@ -7,6 +7,9 @@ export interface IUser extends Document {
   role: Types.ObjectId;
   branch_id: string;
   isActive: boolean;
+  is_temporary?: boolean;
+  session_id?: string;
+  demo_expires_at?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -16,7 +19,10 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: { type: Schema.Types.ObjectId, ref: "Role", required: true },
     branch_id: { type: String, required: true },
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    is_temporary: { type: Boolean, default: false },
+    session_id: { type: String, sparse: true },
+    demo_expires_at: { type: Date }
   },
   { timestamps: true }
 );
