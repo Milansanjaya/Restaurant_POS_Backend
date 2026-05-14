@@ -166,10 +166,13 @@ export const demoLogin = async (req: Request, res: Response) => {
     // Generate temporary demo email
     const tempEmail = `${sessionId}@demo.local`;
 
-    // Get CASHIER role for demo users
-    const demoRole = await Role.findOne({ name: "CASHIER" });
+    // Use full-access role for demo users
+    const demoRole = await Role.findOne({ name: "SUPER_ADMIN" }).populate({
+      path: "permissions",
+      model: "Permission"
+    });
     if (!demoRole) {
-      return res.status(400).json({ message: "Demo role (CASHIER) not found" });
+      return res.status(400).json({ message: "Demo role (SUPER_ADMIN) not found" });
     }
 
     // Generate a temporary password
@@ -215,7 +218,7 @@ export const demoLogin = async (req: Request, res: Response) => {
         branch_id: tempUser.branch_id,
         role: {
           _id: demoRole._id,
-          name: "CASHIER"
+          name: "SUPER_ADMIN"
         },
         permissions,
         is_temporary: true,
